@@ -1,6 +1,7 @@
 // Globale Variablen
-let currentWalletAddress = null;
-let currentContractAddress = null;
+let walletPanels = [];
+let contractPanels = [];
+let panelIdCounter = 0;
 let refreshInterval = null;
 
 // Initialisierung
@@ -8,6 +9,9 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeApp();
     startAutoRefresh();
     updateNetworkStatus();
+    
+    // Lade gespeicherte Panels
+    loadSavedPanels();
 });
 
 async function initializeApp() {
@@ -20,301 +24,630 @@ async function initializeApp() {
     }
 }
 
-// Wallet-Adresse setzen
-async function setWalletAddress(address) {
-    if (!address || address.trim() === '') {
-        return;
+// Netzwerk wechseln
+function switchNetwork(network) {
+    CONFIG.activeNetwork = network;
+    updateNetworkStatus();
+    
+    // Alle Panels neu laden
+    walletPanels.forEach(panel => refreshWalletPanel(panel.id));
+    contractPanels.forEach(panel => refreshContractPanel(panel.id));
+    updateBlockchainInfo();
+    
+    showNotification(`Zu ${network} gewechselt`, 'success');
+}
+
+function updateNetworkStatus() {
+    const network = CONFIG.activeNetwork === 'preprod' ? 'Preprod' : 'Mainnet';
+    document.getElementById('networkStatus').textContent = `${network} Connected`;
+    
+    // Update Button-Styles
+    document.getElementById('btnPreprod').classList.toggle('active', CONFIG.activeNetwork === 'preprod');
+    document.getElementById('btnMainnet').classList.toggle('active', CONFIG.activeNetwork === 'mainnet');
+}
+
+// ==================== WALLET PANELS ====================
+
+function addWalletPanel() {
+    const panelId = `wallet-${panelIdCounter++}`;
+    const panel = {
+        id: panelId,
+        type: 'wallet',
+        address: null
+    };
+    
+    walletPanels.push(panel);
+    renderWalletPanel(panel);
+    savePanels();
+}
+
+function renderWalletPanel(panel) {
+    const grid = document.getElementById('walletsGrid');
+    const panelHtml = `
+        <div class="panel wallet-panel" id="${panel.id}" data-panel-id="${panel.id}">
+            <div class="panel-header">
+                <h3>💼 Wallet</h3>
+                <div class="panel-actions">
+                    <button class="icon-btn" onclick="refreshWalletPanel('${panel.id}')" title="Refresh">↻</button>
+                    <button class="icon-btn" onclick="exportPanelData('${panel.id}')" title="Export">💾</button>
+                    <button class="icon-btn close-btn" onclick="removePanel('${panel.id}')" title="Entfernen">×</button>
+                </div>
+            </div>
+            
+            <div class="address-input-container">
+                <input type="text" class="address-input" 
+                       placeholder="addr1... oder addr_test1..." 
+                       onchange="setWalletPanelAddress('${panel.id}', this.value)"
+                       value="${panel.address || ''}">
+            </div>
+            
+            <div class="panel-content" id="${panel.id}-content">
+                <div class="loading-message">Adresse eingeben...</div>
+            </div>
+        </div>
+    `;
+    
+    grid.insertAdjacentHTML('beforeend', panelHtml);
+    
+    if (panel.address) {
+        refreshWalletPanel(panel.id);
     }
+}
+
+async function setWalletPanelAddress(panelId, address) {
+    if (!address || address.trim() === '') return;
     
     address = address.trim();
     
-    // Validierung - Akzeptiere alle Cardano-Adresstypen
     if (!isValidCardanoAddress(address)) {
         showNotification('Ungültige Wallet-Adresse', 'error');
         return;
     }
     
-    currentWalletAddress = address;
-    document.getElementById('walletAddress').textContent = formatAddress(address);
-    document.getElementById('walletAddressInput').value = '';
-    
-    showNotification('Lade Wallet-Daten...', 'info');
-    await refreshWallet();
+    const panel = walletPanels.find(p => p.id === panelId);
+    if (panel) {
+        panel.address = address;
+        savePanels();
+        await refreshWalletPanel(panelId);
+    }
 }
 
-// Contract-Adresse setzen
-async function setContractAddress(address) {
-    if (!address || address.trim() === '') {
-        return;
+async function refreshWalletPanel(panelId) {
+    const panel = walletPanels.find(p => p.id === panelId);
+    if (!panel || !panel.address) return;
+    
+    const contentDiv = document.getElementById(`${panelId}-content`);
+    
+    // Loading-Overlay statt Content zu ersetzen
+    let loadingOverlay = contentDiv.querySelector('.loading-overlay');
+    if (!loadingOverlay) {
+        loadingOverlay = document.createElement('div');
+        loadingOverlay.className = 'loading-overlay';
+        loadingOverlay.innerHTML = '<div class="loading-spinner">↻</div>';
+        contentDiv.appendChild(loadingOverlay);
     }
+    loadingOverlay.style.display = 'flex';
+    
+    try {
+        const addressInfo = await blockfrostRequest(`/addresses/${panel.address}`);
+        
+        // Balance
+        const balanceADA = addressInfo.amount && addressInfo.amount.length > 0 
+            ? parseInt(addressInfo.amount[0].quantity) / 1000000 
+            : 0;
+        
+        // Tokens/NFTs
+        const tokens = addressInfo.amount ? addressInfo.amount.slice(1) : [];
+        
+        // Transaktionen
+        let transactions = [];
+        try {
+            transactions = await blockfrostRequest(`/addresses/${panel.address}/transactions?count=5&order=desc`);
+        } catch (e) {
+            console.log('Keine Transaktionen');
+        }
+        
+        // UTXOs
+        let utxos = [];
+        try {
+            utxos = await blockfrostRequest(`/addresses/${panel.address}/utxos`);
+        } catch (e) {
+            console.log('Keine UTXOs');
+        }
+        
+        // Pending
+        let pendingCount = 0;
+        try {
+            const mempool = await blockfrostRequest(`/mempool/addresses/${panel.address}`);
+            pendingCount = mempool.length;
+        } catch (e) {
+            // Kein Mempool
+        }
+        
+        // Entferne Loading-Overlay
+        if (loadingOverlay) {
+            loadingOverlay.style.display = 'none';
+        }
+        
+        // Render Content
+        contentDiv.innerHTML = `
+            <div class="address-display-small">${formatAddress(panel.address)}</div>
+            
+            <div class="balance-card-compact">
+                <div class="balance-amount-compact">
+                    <span class="amount">${balanceADA.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span class="currency">₳</span>
+                </div>
+            </div>
+            
+            <div class="stats-row">
+                <div class="stat-compact">
+                    <div class="stat-label">Transactions</div>
+                    <div class="stat-value">${addressInfo.tx_count || 0}</div>
+                </div>
+                <div class="stat-compact">
+                    <div class="stat-label">UTXOs</div>
+                    <div class="stat-value">${utxos.length}</div>
+                </div>
+                <div class="stat-compact">
+                    <div class="stat-label">Pending</div>
+                    <div class="stat-value pending">${pendingCount}</div>
+                </div>
+                <div class="stat-compact">
+                    <div class="stat-label">Assets</div>
+                    <div class="stat-value">${tokens.length}</div>
+                </div>
+            </div>
+            
+            ${tokens.length > 0 ? `
+                <div class="tokens-section">
+                    <div class="section-title">🪙 Assets</div>
+                    <div class="tokens-list">
+                        ${tokens.slice(0, 3).map(token => `
+                            <div class="token-item">
+                                <span class="token-name">${formatTokenName(token.unit)}</span>
+                                <span class="token-amount">${formatTokenAmount(token.quantity)}</span>
+                            </div>
+                        `).join('')}
+                        ${tokens.length > 3 ? `<div class="token-more">+${tokens.length - 3} mehr</div>` : ''}
+                    </div>
+                </div>
+            ` : ''}
+            
+            <div class="transactions-section">
+                <div class="section-title">📋 Recent Transactions</div>
+                <div class="transactions-compact">
+                    ${await renderWalletTransactions(panel.address, transactions)}
+                </div>
+            </div>
+        `;
+        
+    } catch (error) {
+        console.error('Wallet-Panel-Fehler:', error);
+        
+        // Entferne Loading-Overlay
+        if (loadingOverlay) {
+            loadingOverlay.style.display = 'none';
+        }
+        
+        if (error.message.includes('404') || error.message.includes('not found')) {
+            contentDiv.innerHTML = `
+                <div class="address-display-small">${formatAddress(panel.address)}</div>
+                <div class="empty-state">
+                    <div class="empty-icon">✨</div>
+                    <div class="empty-text">Neues Wallet</div>
+                    <div class="empty-subtext">Noch keine Aktivität</div>
+                </div>
+            `;
+        } else {
+            contentDiv.innerHTML = `<div class="error-message">❌ ${error.message}</div>`;
+        }
+    }
+}
+
+async function renderWalletTransactions(address, txHashes) {
+    if (!txHashes || txHashes.length === 0) {
+        return '<div class="loading-message">Keine Transaktionen</div>';
+    }
+    
+    const txElements = [];
+    
+    for (const txHash of txHashes.slice(0, 3)) {
+        try {
+            const txDetails = await blockfrostRequest(`/txs/${txHash.tx_hash}`);
+            const utxos = await blockfrostRequest(`/txs/${txHash.tx_hash}/utxos`);
+            
+            let netAmount = 0;
+            utxos.outputs.forEach(output => {
+                if (output.address === address) {
+                    netAmount += parseInt(output.amount[0].quantity);
+                }
+            });
+            utxos.inputs.forEach(input => {
+                if (input.address === address) {
+                    netAmount -= parseInt(input.amount[0].quantity);
+                }
+            });
+            
+            const netAmountADA = netAmount / 1000000;
+            const isPositive = netAmount > 0;
+            const timeAgo = getTimeAgo(txDetails.block_time);
+            
+            txElements.push(`
+                <div class="tx-item-compact" onclick="showTxDetails('${txHash.tx_hash}')">
+                    <div class="tx-icon-compact">${isPositive ? '↓' : '↑'}</div>
+                    <div class="tx-info">
+                        <div class="tx-hash-compact">${formatTxHash(txHash.tx_hash)}</div>
+                        <div class="tx-time-compact">${timeAgo}</div>
+                    </div>
+                    <div class="tx-amount-compact" style="color: ${isPositive ? '#00ff88' : '#ff6b6b'}">
+                        ${isPositive ? '+' : ''}${netAmountADA.toFixed(2)} ₳
+                    </div>
+                </div>
+            `);
+        } catch (e) {
+            console.error('TX-Fehler:', e);
+        }
+    }
+    
+    return txElements.length > 0 ? txElements.join('') : '<div class="loading-message">Keine Transaktionen</div>';
+}
+
+// ==================== CONTRACT PANELS ====================
+
+function addContractPanel() {
+    const panelId = `contract-${panelIdCounter++}`;
+    const panel = {
+        id: panelId,
+        type: 'contract',
+        address: null
+    };
+    
+    contractPanels.push(panel);
+    renderContractPanel(panel);
+    savePanels();
+}
+
+function renderContractPanel(panel) {
+    const grid = document.getElementById('contractsGrid');
+    const panelHtml = `
+        <div class="panel contract-panel" id="${panel.id}" data-panel-id="${panel.id}">
+            <div class="panel-header">
+                <h3>📜 Smart Contract</h3>
+                <div class="panel-actions">
+                    <button class="icon-btn" onclick="refreshContractPanel('${panel.id}')" title="Refresh">↻</button>
+                    <button class="icon-btn" onclick="exportPanelData('${panel.id}')" title="Export">💾</button>
+                    <button class="icon-btn close-btn" onclick="removePanel('${panel.id}')" title="Entfernen">×</button>
+                </div>
+            </div>
+            
+            <div class="address-input-container">
+                <input type="text" class="address-input" 
+                       placeholder="addr1... oder addr_test1..." 
+                       onchange="setContractPanelAddress('${panel.id}', this.value)"
+                       value="${panel.address || ''}">
+            </div>
+            
+            <div class="panel-content" id="${panel.id}-content">
+                <div class="loading-message">Adresse eingeben...</div>
+            </div>
+        </div>
+    `;
+    
+    grid.insertAdjacentHTML('beforeend', panelHtml);
+    
+    if (panel.address) {
+        refreshContractPanel(panel.id);
+    }
+}
+
+async function setContractPanelAddress(panelId, address) {
+    if (!address || address.trim() === '') return;
     
     address = address.trim();
     
-    // Validierung - Akzeptiere alle Cardano-Adresstypen
     if (!isValidCardanoAddress(address)) {
         showNotification('Ungültige Contract-Adresse', 'error');
         return;
     }
     
-    currentContractAddress = address;
-    document.getElementById('contractAddress').textContent = formatAddress(address);
-    document.getElementById('contractAddressInput').value = '';
-    
-    showNotification('Lade Contract-Daten...', 'info');
-    await refreshContract();
+    const panel = contractPanels.find(p => p.id === panelId);
+    if (panel) {
+        panel.address = address;
+        savePanels();
+        await refreshContractPanel(panelId);
+    }
 }
 
-// Wallet-Daten von Blockfrost laden
-async function refreshWallet() {
-    if (!currentWalletAddress) {
-        showNotification('Bitte Wallet-Adresse eingeben', 'error');
-        return;
-    }
+async function refreshContractPanel(panelId) {
+    const panel = contractPanels.find(p => p.id === panelId);
+    if (!panel || !panel.address) return;
     
-    const btn = event?.target;
-    if (btn) btn.style.transform = 'rotate(360deg)';
+    const contentDiv = document.getElementById(`${panelId}-content`);
+    
+    // Loading-Overlay statt Content zu ersetzen
+    let loadingOverlay = contentDiv.querySelector('.loading-overlay');
+    if (!loadingOverlay) {
+        loadingOverlay = document.createElement('div');
+        loadingOverlay.className = 'loading-overlay';
+        loadingOverlay.innerHTML = '<div class="loading-spinner">↻</div>';
+        contentDiv.appendChild(loadingOverlay);
+    }
+    loadingOverlay.style.display = 'flex';
     
     try {
-        // Wallet-Info abrufen
-        const addressInfo = await blockfrostRequest(`/addresses/${currentWalletAddress}`);
+        const addressInfo = await blockfrostRequest(`/addresses/${panel.address}`);
         
-        // Balance in ADA umrechnen (Lovelace zu ADA)
-        const balanceADA = parseInt(addressInfo.amount[0].quantity) / 1000000;
-        document.getElementById('walletBalance').querySelector('.amount').textContent = 
-            balanceADA.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        // Locked Value
+        const lockedValueADA = addressInfo.amount && addressInfo.amount.length > 0 
+            ? parseInt(addressInfo.amount[0].quantity) / 1000000 
+            : 0;
         
-        // Transaktionen abrufen
-        const transactions = await blockfrostRequest(`/addresses/${currentWalletAddress}/transactions?count=10&order=desc`);
-        document.getElementById('totalTx').textContent = addressInfo.tx_count || transactions.length;
-        
-        // Detaillierte Transaktionen laden
-        await loadWalletTransactions(transactions.slice(0, 5));
-        
-        // Pending Transaktionen (Mempool)
+        // Transaktionen
+        let transactions = [];
         try {
-            const mempoolTxs = await blockfrostRequest(`/mempool/addresses/${currentWalletAddress}`);
-            document.getElementById('pendingTx').textContent = mempoolTxs.length || 0;
+            transactions = await blockfrostRequest(`/addresses/${panel.address}/transactions?count=10&order=desc`);
         } catch (e) {
-            document.getElementById('pendingTx').textContent = 0;
+            console.log('Keine Transaktionen');
         }
         
-        animateNumbers();
-        showNotification('Wallet aktualisiert', 'success');
-        
-    } catch (error) {
-        console.error('Wallet-Fehler:', error);
-        
-        // Bessere Fehlermeldungen für Wallet
-        if (error.message.includes('404') || error.message.includes('not found')) {
-            // Wallet existiert noch nicht on-chain
-            document.getElementById('walletBalance').querySelector('.amount').textContent = '0.00';
-            document.getElementById('totalTx').textContent = '0';
-            document.getElementById('pendingTx').textContent = '0';
-            document.getElementById('walletTransactions').innerHTML = 
-                '<div class="loading-message">✨ Neues Wallet - noch keine Transaktionen</div>';
-            showNotification('Wallet bereit (noch keine Aktivität)', 'info');
-            animateNumbers();
-        } else if (error.message.includes('400') || error.message.includes('Invalid address')) {
-            showNotification('Adresse nicht gefunden - falsches Netzwerk?', 'error');
-        } else {
-            showNotification(`Fehler: ${error.message}`, 'error');
-        }
-    } finally {
-        if (btn) {
-            setTimeout(() => btn.style.transform = 'rotate(0deg)', 300);
-        }
-    }
-}
-
-// Contract-Daten von Blockfrost laden
-async function refreshContract() {
-    if (!currentContractAddress) {
-        showNotification('Bitte Contract-Adresse eingeben', 'error');
-        return;
-    }
-    
-    const btn = event?.target;
-    if (btn) btn.style.transform = 'rotate(360deg)';
-    
-    try {
-        // Contract-Info abrufen
-        const addressInfo = await blockfrostRequest(`/addresses/${currentContractAddress}`);
-        
-        // Prüfe ob Adresse Guthaben hat
-        if (!addressInfo.amount || addressInfo.amount.length === 0) {
-            // Adresse existiert, hat aber kein Guthaben
-            document.getElementById('contractBalance').querySelector('.amount').textContent = '0.00';
-            document.getElementById('totalExec').textContent = '0';
-            document.getElementById('activeExec').textContent = '0';
-            document.getElementById('contractTransactions').innerHTML = 
-                '<div class="loading-message">Keine Transaktionen gefunden (Adresse leer)</div>';
-            showNotification('Contract hat kein Guthaben', 'info');
-            animateNumbers();
-            return;
+        // UTXOs
+        let utxos = [];
+        try {
+            utxos = await blockfrostRequest(`/addresses/${panel.address}/utxos`);
+        } catch (e) {
+            console.log('Keine UTXOs');
         }
         
-        // Locked Value in ADA
-        const lockedValueADA = parseInt(addressInfo.amount[0].quantity) / 1000000;
-        document.getElementById('contractBalance').querySelector('.amount').textContent = 
-            lockedValueADA.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-        
-        // Transaktionen abrufen
-        const transactions = await blockfrostRequest(`/addresses/${currentContractAddress}/transactions?count=20&order=desc`);
-        document.getElementById('totalExec').textContent = addressInfo.tx_count || transactions.length;
-        
-        // Aktive Transaktionen (letzte 24h)
+        // Aktive Transaktionen (24h)
         const oneDayAgo = Math.floor(Date.now() / 1000) - 86400;
         const recentTxs = transactions.filter(tx => tx.block_time > oneDayAgo);
-        document.getElementById('activeExec').textContent = recentTxs.length;
         
-        // Detaillierte Transaktionen laden
-        await loadContractTransactions(transactions.slice(0, 5));
+        // Entferne Loading-Overlay
+        if (loadingOverlay) {
+            loadingOverlay.style.display = 'none';
+        }
         
-        animateNumbers();
-        showNotification('Contract aktualisiert', 'success');
+        // Render Content
+        contentDiv.innerHTML = `
+            <div class="address-display-small">${formatAddress(panel.address)}</div>
+            
+            <div class="balance-card-compact contract-balance">
+                <div class="balance-label-compact">Locked Value</div>
+                <div class="balance-amount-compact">
+                    <span class="amount">${lockedValueADA.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <span class="currency">₳</span>
+                </div>
+            </div>
+            
+            <div class="stats-row">
+                <div class="stat-compact">
+                    <div class="stat-label">Total Executions</div>
+                    <div class="stat-value">${addressInfo.tx_count || 0}</div>
+                </div>
+                <div class="stat-compact">
+                    <div class="stat-label">UTXOs</div>
+                    <div class="stat-value">${utxos.length}</div>
+                </div>
+                <div class="stat-compact">
+                    <div class="stat-label">Active (24h)</div>
+                    <div class="stat-value active">${recentTxs.length}</div>
+                </div>
+            </div>
+            
+            <div class="transactions-section">
+                <div class="section-title">⚡ Contract Executions</div>
+                <div class="transactions-compact">
+                    ${await renderContractTransactions(transactions)}
+                </div>
+            </div>
+        `;
         
     } catch (error) {
-        console.error('Contract-Fehler:', error);
+        console.error('Contract-Panel-Fehler:', error);
         
-        // Bessere Fehlermeldungen
+        // Entferne Loading-Overlay
+        if (loadingOverlay) {
+            loadingOverlay.style.display = 'none';
+        }
+        
         if (error.message.includes('404') || error.message.includes('not found')) {
-            // Adresse existiert noch nicht on-chain (neuer Contract)
-            document.getElementById('contractBalance').querySelector('.amount').textContent = '0.00';
-            document.getElementById('totalExec').textContent = '0';
-            document.getElementById('activeExec').textContent = '0';
-            document.getElementById('contractTransactions').innerHTML = 
-                '<div class="loading-message">✨ Neuer Contract - noch keine Transaktionen</div>';
-            showNotification('Contract bereit (noch keine Aktivität)', 'info');
-            animateNumbers();
-        } else if (error.message.includes('400') || error.message.includes('Invalid address')) {
-            // 400 = Adresse ungültig oder falsches Netzwerk
-            document.getElementById('contractBalance').querySelector('.amount').textContent = '0.00';
-            document.getElementById('totalExec').textContent = '0';
-            document.getElementById('activeExec').textContent = '0';
-            document.getElementById('contractTransactions').innerHTML = 
-                '<div class="loading-message">⚠️ Adresse nicht im Preprod-Netzwerk gefunden</div>';
-            showNotification('Adresse nicht gefunden - falsches Netzwerk?', 'error');
+            contentDiv.innerHTML = `
+                <div class="address-display-small">${formatAddress(panel.address)}</div>
+                <div class="empty-state">
+                    <div class="empty-icon">✨</div>
+                    <div class="empty-text">Neuer Contract</div>
+                    <div class="empty-subtext">Noch keine Aktivität</div>
+                </div>
+            `;
         } else {
-            showNotification(`Fehler: ${error.message}`, 'error');
-        }
-    } finally {
-        if (btn) {
-            setTimeout(() => btn.style.transform = 'rotate(0deg)', 300);
+            contentDiv.innerHTML = `<div class="error-message">❌ ${error.message}</div>`;
         }
     }
 }
 
-// Wallet-Transaktionen detailliert laden
-async function loadWalletTransactions(txHashes) {
-    const container = document.getElementById('walletTransactions');
-    container.innerHTML = '<div class="loading-message">Lade Transaktionen...</div>';
+async function renderContractTransactions(txHashes) {
+    if (!txHashes || txHashes.length === 0) {
+        return '<div class="loading-message">Keine Executions</div>';
+    }
     
-    try {
-        const txElements = [];
-        
-        for (const txHash of txHashes.slice(0, 5)) {
-            try {
-                const txDetails = await blockfrostRequest(`/txs/${txHash.tx_hash}`);
-                const utxos = await blockfrostRequest(`/txs/${txHash.tx_hash}/utxos`);
-                
-                // Berechne Netto-Betrag für diese Adresse
-                let netAmount = 0;
-                
-                // Outputs (Eingänge für Wallet)
-                utxos.outputs.forEach(output => {
-                    if (output.address === currentWalletAddress) {
-                        netAmount += parseInt(output.amount[0].quantity);
-                    }
-                });
-                
-                // Inputs (Ausgänge vom Wallet)
-                utxos.inputs.forEach(input => {
-                    if (input.address === currentWalletAddress) {
-                        netAmount -= parseInt(input.amount[0].quantity);
-                    }
-                });
-                
-                const netAmountADA = netAmount / 1000000;
-                const isPositive = netAmount > 0;
-                const timeAgo = getTimeAgo(txDetails.block_time);
-                
-                txElements.push(`
-                    <div class="transaction-item success">
-                        <div class="tx-icon">${isPositive ? '↓' : '↑'}</div>
-                        <div class="tx-details">
-                            <div class="tx-hash">${formatTxHash(txHash.tx_hash)}</div>
-                            <div class="tx-time">${timeAgo}</div>
-                        </div>
-                        <div class="tx-amount" style="color: ${isPositive ? '#00ff88' : '#ff6b6b'}">
-                            ${isPositive ? '+' : ''}${netAmountADA.toFixed(2)} ₳
-                        </div>
-                    </div>
-                `);
-            } catch (e) {
-                console.error('TX-Detail-Fehler:', e);
-            }
-        }
-        
-        container.innerHTML = txElements.length > 0 
-            ? txElements.join('') 
-            : '<div class="loading-message">Keine Transaktionen gefunden</div>';
+    const txElements = [];
+    
+    for (const txHash of txHashes.slice(0, 5)) {
+        try {
+            const txDetails = await blockfrostRequest(`/txs/${txHash.tx_hash}`);
+            const timeAgo = getTimeAgo(txDetails.block_time);
             
-    } catch (error) {
-        console.error('Fehler beim Laden der Transaktionen:', error);
-        container.innerHTML = '<div class="loading-message">Fehler beim Laden</div>';
-    }
-}
-
-// Contract-Transaktionen detailliert laden
-async function loadContractTransactions(txHashes) {
-    const container = document.getElementById('contractTransactions');
-    container.innerHTML = '<div class="loading-message">Lade Transaktionen...</div>';
-    
-    try {
-        const txElements = [];
-        
-        for (const txHash of txHashes.slice(0, 5)) {
+            let executionType = 'Transaction';
+            let icon = '📝';
+            
             try {
-                const txDetails = await blockfrostRequest(`/txs/${txHash.tx_hash}`);
-                const timeAgo = getTimeAgo(txDetails.block_time);
-                
-                // Versuche Redeemer zu laden (Smart Contract Execution)
-                let executionType = 'Transaction';
-                try {
-                    const redeemers = await blockfrostRequest(`/txs/${txHash.tx_hash}/redeemers`);
-                    if (redeemers.length > 0) {
-                        executionType = `Script Execution (${redeemers[0].purpose})`;
-                    }
-                } catch (e) {
-                    // Keine Redeemer = normale Transaction
+                const redeemers = await blockfrostRequest(`/txs/${txHash.tx_hash}/redeemers`);
+                if (redeemers.length > 0) {
+                    executionType = `Script: ${redeemers[0].purpose}`;
+                    icon = '⚡';
                 }
-                
-                txElements.push(`
-                    <div class="transaction-item success">
-                        <div class="tx-icon">✓</div>
-                        <div class="tx-details">
-                            <div class="tx-hash">${executionType}</div>
-                            <div class="tx-time">${timeAgo} • ${formatTxHash(txHash.tx_hash)}</div>
-                        </div>
-                        <div class="tx-amount">Success</div>
-                    </div>
-                `);
             } catch (e) {
-                console.error('TX-Detail-Fehler:', e);
+                // Keine Redeemer
             }
-        }
-        
-        container.innerHTML = txElements.length > 0 
-            ? txElements.join('') 
-            : '<div class="loading-message">Keine Transaktionen gefunden</div>';
             
-    } catch (error) {
-        console.error('Fehler beim Laden der Contract-Transaktionen:', error);
-        container.innerHTML = '<div class="loading-message">Fehler beim Laden</div>';
+            txElements.push(`
+                <div class="tx-item-compact" onclick="showTxDetails('${txHash.tx_hash}')">
+                    <div class="tx-icon-compact">${icon}</div>
+                    <div class="tx-info">
+                        <div class="tx-hash-compact">${executionType}</div>
+                        <div class="tx-time-compact">${timeAgo} • ${formatTxHash(txHash.tx_hash)}</div>
+                    </div>
+                    <div class="tx-status-compact success">✓</div>
+                </div>
+            `);
+        } catch (e) {
+            console.error('TX-Fehler:', e);
+        }
+    }
+    
+    return txElements.length > 0 ? txElements.join('') : '<div class="loading-message">Keine Executions</div>';
+}
+
+// ==================== PANEL MANAGEMENT ====================
+
+function removePanel(panelId) {
+    const panel = document.getElementById(panelId);
+    if (panel) {
+        panel.style.animation = 'slideOut 0.3s ease-out';
+        setTimeout(() => {
+            panel.remove();
+            walletPanels = walletPanels.filter(p => p.id !== panelId);
+            contractPanels = contractPanels.filter(p => p.id !== panelId);
+            savePanels();
+        }, 300);
     }
 }
 
-// Blockchain-Info aktualisieren
+function savePanels() {
+    const data = {
+        wallets: walletPanels,
+        contracts: contractPanels
+    };
+    localStorage.setItem('cardano-dashboard-panels', JSON.stringify(data));
+}
+
+function loadSavedPanels() {
+    const saved = localStorage.getItem('cardano-dashboard-panels');
+    if (saved) {
+        try {
+            const data = JSON.parse(saved);
+            
+            if (data.wallets) {
+                data.wallets.forEach(panel => {
+                    walletPanels.push(panel);
+                    renderWalletPanel(panel);
+                });
+            }
+            
+            if (data.contracts) {
+                data.contracts.forEach(panel => {
+                    contractPanels.push(panel);
+                    renderContractPanel(panel);
+                });
+            }
+            
+            panelIdCounter = Math.max(
+                ...walletPanels.map(p => parseInt(p.id.split('-')[1]) || 0),
+                ...contractPanels.map(p => parseInt(p.id.split('-')[1]) || 0),
+                0
+            ) + 1;
+        } catch (e) {
+            console.error('Fehler beim Laden:', e);
+        }
+    }
+}
+
+// ==================== EXPORT & TX DETAILS ====================
+
+function exportPanelData(panelId) {
+    const panel = [...walletPanels, ...contractPanels].find(p => p.id === panelId);
+    if (!panel || !panel.address) {
+        showNotification('Keine Daten zum Exportieren', 'error');
+        return;
+    }
+    
+    const data = {
+        type: panel.type,
+        address: panel.address,
+        network: CONFIG.activeNetwork,
+        exportedAt: new Date().toISOString()
+    };
+    
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${panel.type}-${formatAddress(panel.address)}-${Date.now()}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    showNotification('Daten exportiert', 'success');
+}
+
+function showTxDetails(txHash) {
+    const modal = document.createElement('div');
+    modal.className = 'modal';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Transaction Details</h3>
+                <button class="close-modal" onclick="this.closest('.modal').remove()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="loading-message">Lade Details...</div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    
+    loadTxDetails(txHash, modal);
+}
+
+async function loadTxDetails(txHash, modal) {
+    try {
+        const tx = await blockfrostRequest(`/txs/${txHash}`);
+        const utxos = await blockfrostRequest(`/txs/${txHash}/utxos`);
+        
+        const modalBody = modal.querySelector('.modal-body');
+        modalBody.innerHTML = `
+            <div class="tx-detail-item">
+                <strong>Hash:</strong>
+                <code>${txHash}</code>
+            </div>
+            <div class="tx-detail-item">
+                <strong>Block:</strong> ${tx.block_height}
+            </div>
+            <div class="tx-detail-item">
+                <strong>Zeit:</strong> ${new Date(tx.block_time * 1000).toLocaleString('de-DE')}
+            </div>
+            <div class="tx-detail-item">
+                <strong>Fees:</strong> ${(tx.fees / 1000000).toFixed(6)} ₳
+            </div>
+            <div class="tx-detail-item">
+                <strong>Inputs:</strong> ${utxos.inputs.length}
+            </div>
+            <div class="tx-detail-item">
+                <strong>Outputs:</strong> ${utxos.outputs.length}
+            </div>
+            <div class="tx-detail-actions">
+                <a href="https://preprod.cardanoscan.io/transaction/${txHash}" target="_blank" class="btn-link">
+                    🔗 CardanoScan öffnen
+                </a>
+            </div>
+        `;
+    } catch (error) {
+        modal.querySelector('.modal-body').innerHTML = `<div class="error-message">Fehler: ${error.message}</div>`;
+    }
+}
+
+// ==================== BLOCKCHAIN INFO ====================
+
 async function updateBlockchainInfo() {
     try {
         const latestBlock = await blockfrostRequest('/blocks/latest');
@@ -330,49 +663,93 @@ async function updateBlockchainInfo() {
     }
 }
 
-// Netzwerk-Status aktualisieren
-function updateNetworkStatus() {
-    const network = CONFIG.activeNetwork === 'preprod' ? 'Preprod' : 'Mainnet';
-    document.getElementById('networkStatus').textContent = `${network} Connected`;
-}
-
-// Auto-Refresh alle 30 Sekunden
-function startAutoRefresh() {
-    // Blockchain-Info alle 30 Sekunden
-    setInterval(async () => {
-        await updateBlockchainInfo();
-        
-        // Wallet und Contract nur refreshen wenn Adressen gesetzt sind
-        if (currentWalletAddress) {
-            await refreshWallet();
-        }
-        if (currentContractAddress) {
-            await refreshContract();
-        }
-    }, 30000);
-}
-
-// Letzte Aktualisierung
 function updateLastUpdateTime() {
     const now = new Date();
     const timeString = now.toLocaleTimeString('de-DE');
     document.getElementById('lastUpdate').textContent = timeString;
 }
 
-// Zahlen-Animation
-function animateNumbers() {
-    const numbers = document.querySelectorAll('.stat-value, .balance-amount .amount');
-    numbers.forEach(num => {
-        num.style.transform = 'scale(1.1)';
-        num.style.color = '#00ff88';
-        setTimeout(() => {
-            num.style.transform = 'scale(1)';
-            num.style.color = '';
-        }, 300);
-    });
+function startAutoRefresh() {
+    setInterval(async () => {
+        await updateBlockchainInfo();
+        walletPanels.forEach(panel => {
+            if (panel.address) refreshWalletPanel(panel.id);
+        });
+        contractPanels.forEach(panel => {
+            if (panel.address) refreshContractPanel(panel.id);
+        });
+    }, 30000);
 }
 
-// Notification System
+// ==================== HELPER FUNCTIONS ====================
+
+function isValidCardanoAddress(address) {
+    const isMainnetAddr = address.startsWith('addr1');
+    const isTestnetAddr = address.startsWith('addr_test1');
+    const isMainnetStake = address.startsWith('stake1');
+    const isTestnetStake = address.startsWith('stake_test1');
+    const isScript = address.startsWith('script1');
+    
+    const hasValidPrefix = isMainnetAddr || isTestnetAddr || isMainnetStake || isTestnetStake || isScript;
+    const hasValidLength = address.length >= 50;
+    const bech32Pattern = /^[a-z0-9_]+$/;
+    const hasValidCharacters = bech32Pattern.test(address);
+    
+    return hasValidPrefix && hasValidLength && hasValidCharacters;
+}
+
+function formatAddress(address) {
+    if (!address) return 'Keine Adresse';
+    return `${address.substring(0, 12)}...${address.substring(address.length - 8)}`;
+}
+
+function formatTxHash(hash) {
+    if (!hash) return '';
+    return `${hash.substring(0, 8)}...${hash.substring(hash.length - 8)}`;
+}
+
+function formatTokenName(unit) {
+    if (unit === 'lovelace') return 'ADA';
+    if (unit.length > 56) {
+        const policyId = unit.substring(0, 56);
+        const assetName = unit.substring(56);
+        try {
+            return assetName ? hex2a(assetName) : policyId.substring(0, 8) + '...';
+        } catch (e) {
+            return unit.substring(0, 12) + '...';
+        }
+    }
+    return unit.substring(0, 12) + '...';
+}
+
+function formatTokenAmount(quantity) {
+    const num = parseInt(quantity);
+    if (num > 1000000) {
+        return (num / 1000000).toFixed(2) + 'M';
+    } else if (num > 1000) {
+        return (num / 1000).toFixed(2) + 'K';
+    }
+    return num.toLocaleString('de-DE');
+}
+
+function hex2a(hex) {
+    let str = '';
+    for (let i = 0; i < hex.length; i += 2) {
+        str += String.fromCharCode(parseInt(hex.substr(i, 2), 16));
+    }
+    return str;
+}
+
+function getTimeAgo(timestamp) {
+    const now = Math.floor(Date.now() / 1000);
+    const diff = now - timestamp;
+    
+    if (diff < 60) return 'Gerade eben';
+    if (diff < 3600) return `${Math.floor(diff / 60)} Min.`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)} Std.`;
+    return `${Math.floor(diff / 86400)} Tage`;
+}
+
 function showNotification(message, type = 'info') {
     const notification = document.createElement('div');
     const colors = {
@@ -393,7 +770,7 @@ function showNotification(message, type = 'info') {
         border-radius: 10px;
         border: 1px solid ${color.border};
         backdrop-filter: blur(10px);
-        z-index: 1000;
+        z-index: 10000;
         animation: slideInRight 0.3s ease-out;
         box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
         font-size: 14px;
@@ -408,128 +785,15 @@ function showNotification(message, type = 'info') {
     }, 3000);
 }
 
-// Helper-Funktionen
-function isValidCardanoAddress(address) {
-    // Cardano-Adresstypen (Bech32-kodiert):
-    // Mainnet:
-    //   addr1q... - Base address (payment + stake)
-    //   addr1v... - Base address (script + stake)
-    //   addr1w... - Enterprise address (payment only)
-    //   addr1x... - Enterprise address (script only)
-    //   stake1... - Stake address
-    // Testnet/Preprod:
-    //   addr_test1q... - Base address (payment + stake)
-    //   addr_test1v... - Base address (script + stake)
-    //   addr_test1w... - Enterprise address (payment only)
-    //   addr_test1x... - Enterprise address (script only)
-    //   stake_test1... - Stake address
-    
-    // Vereinfachte Validierung: Prüfe nur ob es mit addr oder stake beginnt
-    const isMainnetAddr = address.startsWith('addr1');
-    const isTestnetAddr = address.startsWith('addr_test1');
-    const isMainnetStake = address.startsWith('stake1');
-    const isTestnetStake = address.startsWith('stake_test1');
-    const isScript = address.startsWith('script1');
-    
-    const hasValidPrefix = isMainnetAddr || isTestnetAddr || isMainnetStake || isTestnetStake || isScript;
-    
-    // Prüfe Mindestlänge (Cardano-Adressen sind typischerweise 58-108 Zeichen)
-    const hasValidLength = address.length >= 50;
-    
-    // Prüfe ob nur gültige Bech32-Zeichen verwendet werden (a-z, 0-9, keine Großbuchstaben)
-    const bech32Pattern = /^[a-z0-9_]+$/;
-    const hasValidCharacters = bech32Pattern.test(address);
-    
-    return hasValidPrefix && hasValidLength && hasValidCharacters;
-}
-
-function formatAddress(address) {
-    if (!address) return 'Keine Adresse';
-    return `${address.substring(0, 12)}...${address.substring(address.length - 8)}`;
-}
-
-function formatTxHash(hash) {
-    if (!hash) return '';
-    return `${hash.substring(0, 8)}...${hash.substring(hash.length - 8)}`;
-}
-
-function getTimeAgo(timestamp) {
-    const now = Math.floor(Date.now() / 1000);
-    const diff = now - timestamp;
-    
-    if (diff < 60) return 'Gerade eben';
-    if (diff < 3600) return `${Math.floor(diff / 60)} Min. her`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)} Std. her`;
-    return `${Math.floor(diff / 86400)} Tage her`;
-}
-
 // Keyboard Shortcuts
 document.addEventListener('keydown', (e) => {
     if (e.ctrlKey && e.key === 'r') {
         e.preventDefault();
-        if (currentWalletAddress) refreshWallet();
-        if (currentContractAddress) refreshContract();
+        walletPanels.forEach(p => p.address && refreshWalletPanel(p.id));
+        contractPanels.forEach(p => p.address && refreshContractPanel(p.id));
         updateBlockchainInfo();
     }
 });
 
-// CSS Animations hinzufügen
-const style = document.createElement('style');
-style.textContent = `
-    @keyframes slideInRight {
-        from {
-            opacity: 0;
-            transform: translateX(50px);
-        }
-        to {
-            opacity: 1;
-            transform: translateX(0);
-        }
-    }
-    
-    @keyframes slideOutRight {
-        from {
-            opacity: 1;
-            transform: translateX(0);
-        }
-        to {
-            opacity: 0;
-            transform: translateX(50px);
-        }
-    }
-    
-    .loading-message {
-        text-align: center;
-        padding: 20px;
-        color: rgba(255, 255, 255, 0.5);
-        font-style: italic;
-    }
-    
-    .address-input {
-        width: 100%;
-        padding: 12px;
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        border-radius: 8px;
-        color: #fff;
-        font-family: 'Courier New', monospace;
-        font-size: 14px;
-        transition: all 0.3s ease;
-    }
-    
-    .address-input:focus {
-        outline: none;
-        background: rgba(255, 255, 255, 0.08);
-        border-color: rgba(102, 126, 234, 0.5);
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-    }
-    
-    .address-input::placeholder {
-        color: rgba(255, 255, 255, 0.3);
-    }
-`;
-document.head.appendChild(style);
-
-console.log('🚀 Cardano Developer Dashboard mit echten APIs geladen');
-console.log('💡 Netzwerk:', CONFIG.activeNetwork);
-console.log('💡 Tipp: Wallet- und Contract-Adressen eingeben zum Starten');
+console.log('🚀 Cardano Developer Dashboard v2.0 geladen');
+console.log('💡 Drücke + um Panels hinzuzufügen');

@@ -13,100 +13,34 @@
                 <div class="logo-icon">₳</div>
                 <h1>Cardano Dev Dashboard</h1>
             </div>
-            <div class="network-status">
-                <span class="status-dot"></span>
-                <span id="networkStatus">Preprod Connected</span>
+            <div class="header-controls">
+                <div class="network-switcher">
+                    <button class="network-btn" onclick="switchNetwork('preprod')" id="btnPreprod">Preprod</button>
+                    <button class="network-btn" onclick="switchNetwork('mainnet')" id="btnMainnet">Mainnet</button>
+                </div>
+                <div class="network-status">
+                    <span class="status-dot"></span>
+                    <span id="networkStatus">Preprod Connected</span>
+                </div>
             </div>
         </header>
 
         <main class="main-content">
-            <!-- Linke Seite: Wallet -->
-            <section class="panel left-panel">
-                <div class="panel-header">
-                    <h2>Wallet Overview</h2>
-                    <button class="refresh-btn" onclick="refreshWallet()">↻</button>
+            <div class="panels-container">
+                <!-- Wallets Section -->
+                <div class="section-header">
+                    <h2>💼 Wallets</h2>
+                    <button class="add-panel-btn" onclick="addWalletPanel()">+ Wallet hinzufügen</button>
                 </div>
-                
-                <div class="info-card">
-                    <div class="card-title">Wallet Address</div>
-                    <input type="text" class="address-input" id="walletAddressInput" 
-                           placeholder="addr1... eingeben" 
-                           onchange="setWalletAddress(this.value)">
-                    <div class="address-display" id="walletAddress" style="margin-top: 10px; font-size: 12px;">
-                        Keine Adresse gesetzt
-                    </div>
-                </div>
+                <div class="panels-grid" id="walletsGrid"></div>
 
-                <div class="balance-card">
-                    <div class="balance-label">Balance</div>
-                    <div class="balance-amount" id="walletBalance">
-                        <span class="amount">1,234.56</span>
-                        <span class="currency">₳</span>
-                    </div>
+                <!-- Contracts Section -->
+                <div class="section-header">
+                    <h2>📜 Smart Contracts</h2>
+                    <button class="add-panel-btn" onclick="addContractPanel()">+ Contract hinzufügen</button>
                 </div>
-
-                <div class="stats-grid">
-                    <div class="stat-item">
-                        <div class="stat-label">Total Transactions</div>
-                        <div class="stat-value" id="totalTx">42</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-label">Pending</div>
-                        <div class="stat-value pending" id="pendingTx">2</div>
-                    </div>
-                </div>
-
-                <div class="transactions-list">
-                    <h3>Recent Transactions</h3>
-                    <div id="walletTransactions">
-                        <div class="loading-message">Wallet-Adresse eingeben...</div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Rechte Seite: Smart Contract -->
-            <section class="panel right-panel">
-                <div class="panel-header">
-                    <h2>Smart Contract</h2>
-                    <button class="refresh-btn" onclick="refreshContract()">↻</button>
-                </div>
-                
-                <div class="info-card">
-                    <div class="card-title">Contract Address</div>
-                    <input type="text" class="address-input" id="contractAddressInput" 
-                           placeholder="addr1... eingeben" 
-                           onchange="setContractAddress(this.value)">
-                    <div class="address-display" id="contractAddress" style="margin-top: 10px; font-size: 12px;">
-                        Keine Adresse gesetzt
-                    </div>
-                </div>
-
-                <div class="balance-card">
-                    <div class="balance-label">Locked Value</div>
-                    <div class="balance-amount" id="contractBalance">
-                        <span class="amount">5,678.90</span>
-                        <span class="currency">₳</span>
-                    </div>
-                </div>
-
-                <div class="stats-grid">
-                    <div class="stat-item">
-                        <div class="stat-label">Total Executions</div>
-                        <div class="stat-value" id="totalExec">128</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-label">Active</div>
-                        <div class="stat-value active" id="activeExec">3</div>
-                    </div>
-                </div>
-
-                <div class="transactions-list">
-                    <h3>Contract Transactions</h3>
-                    <div id="contractTransactions">
-                        <div class="loading-message">Contract-Adresse eingeben...</div>
-                    </div>
-                </div>
-            </section>
+                <div class="panels-grid" id="contractsGrid"></div>
+            </div>
         </main>
 
         <footer class="footer">
