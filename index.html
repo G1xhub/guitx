@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cardano Developer Dashboard</title>
+    <title>GUItx Dashboard</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -11,9 +11,23 @@
         <header class="header">
             <div class="logo">
                 <div class="logo-icon">₳</div>
-                <h1>Cardano Dev Dashboard</h1>
+                <h1>GUItx Dashboard</h1>
             </div>
             <div class="header-controls">
+                <div class="search-bar">
+                    <input type="text" id="globalSearch" placeholder="Suche TX-Hash, Adresse..." onkeyup="handleGlobalSearch(event)">
+                </div>
+                <div class="view-toggles">
+                    <button class="view-toggle-btn" id="toggleWalletsBtn" onclick="toggleSection('wallets')" title="Wallets ein/ausblenden">
+                        Wallets
+                    </button>
+                    <button class="view-toggle-btn" id="toggleContractsBtn" onclick="toggleSection('contracts')" title="Contracts ein/ausblenden">
+                        Contracts
+                    </button>
+                </div>
+                <button class="icon-btn-header" onclick="toggleTheme()" title="Theme wechseln">◐</button>
+                <button class="icon-btn-header" onclick="openAddressBook()" title="Address Book">AB</button>
+                <button class="icon-btn-header" onclick="openSettings()" title="Einstellungen">⚙</button>
                 <div class="network-switcher">
                     <button class="network-btn" onclick="switchNetwork('preprod')" id="btnPreprod">Preprod</button>
                     <button class="network-btn" onclick="switchNetwork('mainnet')" id="btnMainnet">Mainnet</button>
@@ -26,20 +40,24 @@
         </header>
 
         <main class="main-content">
-            <div class="panels-container">
-                <!-- Wallets Section -->
-                <div class="section-header">
-                    <h2>💼 Wallets</h2>
-                    <button class="add-panel-btn" onclick="addWalletPanel()">+ Wallet hinzufügen</button>
+            <div class="symmetric-layout" id="mainLayout">
+                <!-- Wallets Section (Links) -->
+                <div class="column-left" id="walletsColumn">
+                    <div class="section-header">
+                        <h2>Wallets</h2>
+                        <button class="add-panel-btn" onclick="addWalletPanel()">+ Hinzufügen</button>
+                    </div>
+                    <div class="panels-column" id="walletsGrid"></div>
                 </div>
-                <div class="panels-grid" id="walletsGrid"></div>
 
-                <!-- Contracts Section -->
-                <div class="section-header">
-                    <h2>📜 Smart Contracts</h2>
-                    <button class="add-panel-btn" onclick="addContractPanel()">+ Contract hinzufügen</button>
+                <!-- Contracts Section (Rechts) -->
+                <div class="column-right" id="contractsColumn">
+                    <div class="section-header">
+                        <h2>Smart Contracts</h2>
+                        <button class="add-panel-btn" onclick="addContractPanel()">+ Hinzufügen</button>
+                    </div>
+                    <div class="panels-column" id="contractsGrid"></div>
                 </div>
-                <div class="panels-grid" id="contractsGrid"></div>
             </div>
         </main>
 
@@ -47,12 +65,19 @@
             <div class="footer-info">
                 <span>Block Height: <strong id="blockHeight">8,234,567</strong></span>
                 <span>Epoch: <strong id="epoch">412</strong></span>
+                <span>TPS: <strong id="tps">0.0</strong></span>
+                <span>Avg Block Time: <strong id="blockTime">20s</strong></span>
+                <span>ADA Price: <strong id="adaPrice">$0.00</strong></span>
                 <span>Last Update: <strong id="lastUpdate">Just now</strong></span>
             </div>
         </footer>
+        
+        <!-- Modals werden hier dynamisch eingefügt -->
+        <div id="modalContainer"></div>
     </div>
 
     <script src="config.js"></script>
+    <script src="features.js"></script>
     <script src="app.js"></script>
 </body>
 </html>

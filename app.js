@@ -66,8 +66,12 @@ function renderWalletPanel(panel) {
     const panelHtml = `
         <div class="panel wallet-panel" id="${panel.id}" data-panel-id="${panel.id}">
             <div class="panel-header">
-                <h3>💼 Wallet</h3>
+                <h3>Wallet</h3>
+                <div class="panel-tags" id="${panel.id}-tags"></div>
                 <div class="panel-actions">
+                    <button class="icon-btn" onclick="openTransactionFilter('${panel.id}')" title="Filter">🔍</button>
+                    <button class="icon-btn" onclick="showPanelNote('${panel.id}')" title="Notiz">📝</button>
+                    <button class="icon-btn" onclick="generateQRCode('${panel.address || ''}')" title="QR Code">📱</button>
                     <button class="icon-btn" onclick="refreshWalletPanel('${panel.id}')" title="Refresh">↻</button>
                     <button class="icon-btn" onclick="exportPanelData('${panel.id}')" title="Export">💾</button>
                     <button class="icon-btn close-btn" onclick="removePanel('${panel.id}')" title="Entfernen">×</button>
@@ -89,8 +93,15 @@ function renderWalletPanel(panel) {
     
     grid.insertAdjacentHTML('beforeend', panelHtml);
     
+    // Make draggable
+    const panelElement = document.getElementById(panel.id);
+    makePanelDraggable(panelElement);
+    
     if (panel.address) {
         refreshWalletPanel(panel.id);
+    } else {
+        // Render tags even if no address yet
+        updatePanelTags(panel.id);
     }
 }
 
@@ -164,6 +175,14 @@ async function refreshWalletPanel(panelId) {
             // Kein Mempool
         }
         
+        // Staking Info (optional)
+        let stakingInfo = null;
+        try {
+            stakingInfo = await loadStakingInfo(panel.address);
+        } catch (e) {
+            console.log('Keine Staking Info verfügbar');
+        }
+        
         // Entferne Loading-Overlay
         if (loadingOverlay) {
             loadingOverlay.style.display = 'none';
@@ -171,6 +190,7 @@ async function refreshWalletPanel(panelId) {
         
         // Render Content
         contentDiv.innerHTML = `
+            <div class="panel-tags-inline"></div>
             <div class="address-display-small">${formatAddress(panel.address)}</div>
             
             <div class="balance-card-compact">
@@ -199,9 +219,26 @@ async function refreshWalletPanel(panelId) {
                 </div>
             </div>
             
+            ${stakingInfo ? `
+                <div class="staking-section">
+                    <div class="section-title">Staking</div>
+                    <div class="staking-info">
+                        <div class="staking-item">
+                            <span class="staking-label">Delegiert:</span>
+                            <span class="staking-value">${stakingInfo.controlled.toFixed(2)} ₳</span>
+                        </div>
+                        <div class="staking-item">
+                            <span class="staking-label">Rewards:</span>
+                            <span class="staking-value">${stakingInfo.rewards.toFixed(2)} ₳</span>
+                        </div>
+                        ${stakingInfo.poolId ? `<div class="staking-pool">Pool: ${stakingInfo.poolId.substring(0, 12)}...</div>` : ''}
+                    </div>
+                </div>
+            ` : ''}
+            
             ${tokens.length > 0 ? `
                 <div class="tokens-section">
-                    <div class="section-title">🪙 Assets</div>
+                    <div class="section-title">Assets</div>
                     <div class="tokens-list">
                         ${tokens.slice(0, 3).map(token => `
                             <div class="token-item">
@@ -215,12 +252,15 @@ async function refreshWalletPanel(panelId) {
             ` : ''}
             
             <div class="transactions-section">
-                <div class="section-title">📋 Recent Transactions</div>
+                <div class="section-title">Recent Transactions</div>
                 <div class="transactions-compact">
                     ${await renderWalletTransactions(panel.address, transactions)}
                 </div>
             </div>
         `;
+        
+        // Update tags after rendering content
+        updatePanelTags(panel.id);
         
     } catch (error) {
         console.error('Wallet-Panel-Fehler:', error);
@@ -232,6 +272,7 @@ async function refreshWalletPanel(panelId) {
         
         if (error.message.includes('404') || error.message.includes('not found')) {
             contentDiv.innerHTML = `
+                <div class="panel-tags-inline"></div>
                 <div class="address-display-small">${formatAddress(panel.address)}</div>
                 <div class="empty-state">
                     <div class="empty-icon">✨</div>
@@ -239,6 +280,7 @@ async function refreshWalletPanel(panelId) {
                     <div class="empty-subtext">Noch keine Aktivität</div>
                 </div>
             `;
+            updatePanelTags(panel.id);
         } else {
             contentDiv.innerHTML = `<div class="error-message">❌ ${error.message}</div>`;
         }
@@ -251,8 +293,9 @@ async function renderWalletTransactions(address, txHashes) {
     }
     
     const txElements = [];
+    const displayCount = Math.min(txHashes.length, 5);
     
-    for (const txHash of txHashes.slice(0, 3)) {
+    for (const txHash of txHashes.slice(0, displayCount)) {
         try {
             const txDetails = await blockfrostRequest(`/txs/${txHash.tx_hash}`);
             const utxos = await blockfrostRequest(`/txs/${txHash.tx_hash}/utxos`);
@@ -313,8 +356,12 @@ function renderContractPanel(panel) {
     const panelHtml = `
         <div class="panel contract-panel" id="${panel.id}" data-panel-id="${panel.id}">
             <div class="panel-header">
-                <h3>📜 Smart Contract</h3>
+                <h3>Smart Contract</h3>
+                <div class="panel-tags" id="${panel.id}-tags"></div>
                 <div class="panel-actions">
+                    <button class="icon-btn" onclick="openTransactionFilter('${panel.id}')" title="Filter">🔍</button>
+                    <button class="icon-btn" onclick="showPanelNote('${panel.id}')" title="Notiz">📝</button>
+                    <button class="icon-btn" onclick="generateQRCode('${panel.address || ''}')" title="QR Code">📱</button>
                     <button class="icon-btn" onclick="refreshContractPanel('${panel.id}')" title="Refresh">↻</button>
                     <button class="icon-btn" onclick="exportPanelData('${panel.id}')" title="Export">💾</button>
                     <button class="icon-btn close-btn" onclick="removePanel('${panel.id}')" title="Entfernen">×</button>
@@ -336,8 +383,15 @@ function renderContractPanel(panel) {
     
     grid.insertAdjacentHTML('beforeend', panelHtml);
     
+    // Make draggable
+    const panelElement = document.getElementById(panel.id);
+    makePanelDraggable(panelElement);
+    
     if (panel.address) {
         refreshContractPanel(panel.id);
+    } else {
+        // Render tags even if no address yet
+        updatePanelTags(panel.id);
     }
 }
 
@@ -410,6 +464,7 @@ async function refreshContractPanel(panelId) {
         
         // Render Content
         contentDiv.innerHTML = `
+            <div class="panel-tags-inline"></div>
             <div class="address-display-small">${formatAddress(panel.address)}</div>
             
             <div class="balance-card-compact contract-balance">
@@ -436,12 +491,15 @@ async function refreshContractPanel(panelId) {
             </div>
             
             <div class="transactions-section">
-                <div class="section-title">⚡ Contract Executions</div>
+                <div class="section-title">Contract Executions</div>
                 <div class="transactions-compact">
                     ${await renderContractTransactions(transactions)}
                 </div>
             </div>
         `;
+        
+        // Update tags after rendering content
+        updatePanelTags(panel.id);
         
     } catch (error) {
         console.error('Contract-Panel-Fehler:', error);
@@ -453,6 +511,7 @@ async function refreshContractPanel(panelId) {
         
         if (error.message.includes('404') || error.message.includes('not found')) {
             contentDiv.innerHTML = `
+                <div class="panel-tags-inline"></div>
                 <div class="address-display-small">${formatAddress(panel.address)}</div>
                 <div class="empty-state">
                     <div class="empty-icon">✨</div>
@@ -460,6 +519,7 @@ async function refreshContractPanel(panelId) {
                     <div class="empty-subtext">Noch keine Aktivität</div>
                 </div>
             `;
+            updatePanelTags(panel.id);
         } else {
             contentDiv.innerHTML = `<div class="error-message">❌ ${error.message}</div>`;
         }
@@ -472,8 +532,9 @@ async function renderContractTransactions(txHashes) {
     }
     
     const txElements = [];
+    const displayCount = Math.min(txHashes.length, 5);
     
-    for (const txHash of txHashes.slice(0, 5)) {
+    for (const txHash of txHashes.slice(0, displayCount)) {
         try {
             const txDetails = await blockfrostRequest(`/txs/${txHash.tx_hash}`);
             const timeAgo = getTimeAgo(txDetails.block_time);
@@ -795,5 +856,87 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
-console.log('🚀 Cardano Developer Dashboard v2.0 geladen');
+console.log('🚀 GUItx Dashboard v2.0 geladen');
 console.log('💡 Drücke + um Panels hinzuzufügen');
+
+
+// ==================== ALERT CHECKING ====================
+
+function checkAlerts(address, balance) {
+    AppState.alerts.forEach(alert => {
+        if (alert.address === address) {
+            // Simple condition parsing
+            if (alert.condition.includes('balance >')) {
+                const threshold = parseFloat(alert.condition.split('>')[1]);
+                if (balance > threshold) {
+                    sendDesktopNotification('Alert ausgelöst!', `${alert.name}: Balance ${balance.toFixed(2)} ₳`);
+                    playSound('success');
+                }
+            }
+        }
+    });
+}
+
+
+// ==================== SECTION TOGGLE ====================
+
+const SectionVisibility = {
+    wallets: localStorage.getItem('walletsVisible') !== 'false',
+    contracts: localStorage.getItem('contractsVisible') !== 'false'
+};
+
+function toggleSection(section) {
+    if (section === 'wallets') {
+        SectionVisibility.wallets = !SectionVisibility.wallets;
+        localStorage.setItem('walletsVisible', SectionVisibility.wallets);
+        updateSectionVisibility();
+    } else if (section === 'contracts') {
+        SectionVisibility.contracts = !SectionVisibility.contracts;
+        localStorage.setItem('contractsVisible', SectionVisibility.contracts);
+        updateSectionVisibility();
+    }
+}
+
+function updateSectionVisibility() {
+    const walletsColumn = document.getElementById('walletsColumn');
+    const contractsColumn = document.getElementById('contractsColumn');
+    const mainLayout = document.getElementById('mainLayout');
+    const toggleWalletsBtn = document.getElementById('toggleWalletsBtn');
+    const toggleContractsBtn = document.getElementById('toggleContractsBtn');
+    
+    // Wallets Section
+    if (SectionVisibility.wallets) {
+        walletsColumn.style.display = 'flex';
+        if (toggleWalletsBtn) toggleWalletsBtn.classList.add('active');
+    } else {
+        walletsColumn.style.display = 'none';
+        if (toggleWalletsBtn) toggleWalletsBtn.classList.remove('active');
+    }
+    
+    // Contracts Section
+    if (SectionVisibility.contracts) {
+        contractsColumn.style.display = 'flex';
+        if (toggleContractsBtn) toggleContractsBtn.classList.add('active');
+    } else {
+        contractsColumn.style.display = 'none';
+        if (toggleContractsBtn) toggleContractsBtn.classList.remove('active');
+    }
+    
+    // Layout anpassen
+    if (!SectionVisibility.wallets && !SectionVisibility.contracts) {
+        mainLayout.style.gridTemplateColumns = '1fr';
+    } else if (!SectionVisibility.wallets || !SectionVisibility.contracts) {
+        mainLayout.style.gridTemplateColumns = '1fr';
+    } else {
+        mainLayout.style.gridTemplateColumns = '1fr 1fr';
+    }
+}
+
+// Initialize section visibility on load
+document.addEventListener('DOMContentLoaded', () => {
+    updateSectionVisibility();
+});
+
+        
+        // Update tags after rendering content
+        updatePanelTags(panel.id);
