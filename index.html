@@ -15,19 +15,19 @@
             </div>
             <div class="header-controls">
                 <div class="search-bar">
-                    <input type="text" id="globalSearch" placeholder="Suche TX-Hash, Adresse..." onkeyup="handleGlobalSearch(event)">
+                    <input type="text" id="globalSearch" placeholder="Search TX-Hash, Address..." onkeyup="handleGlobalSearch(event)">
                 </div>
                 <div class="view-toggles">
-                    <button class="view-toggle-btn" id="toggleWalletsBtn" onclick="toggleSection('wallets')" title="Wallets ein/ausblenden">
+                    <button class="view-toggle-btn" id="toggleWalletsBtn" onclick="toggleSection('wallets')" title="Toggle Wallets">
                         Wallets
                     </button>
-                    <button class="view-toggle-btn" id="toggleContractsBtn" onclick="toggleSection('contracts')" title="Contracts ein/ausblenden">
+                    <button class="view-toggle-btn" id="toggleContractsBtn" onclick="toggleSection('contracts')" title="Toggle Contracts">
                         Contracts
                     </button>
                 </div>
-                <button class="icon-btn-header" onclick="toggleTheme()" title="Theme wechseln">◐</button>
+                <button class="icon-btn-header" onclick="toggleTheme()" title="Toggle Theme">◐</button>
                 <button class="icon-btn-header" onclick="openAddressBook()" title="Address Book">AB</button>
-                <button class="icon-btn-header" onclick="openSettings()" title="Einstellungen">⚙</button>
+                <button class="icon-btn-header" onclick="openSettings()" title="Settings">⚙</button>
                 <div class="network-switcher">
                     <button class="network-btn" onclick="switchNetwork('preprod')" id="btnPreprod">Preprod</button>
                     <button class="network-btn" onclick="switchNetwork('mainnet')" id="btnMainnet">Mainnet</button>
@@ -45,7 +45,7 @@
                 <div class="column-left" id="walletsColumn">
                     <div class="section-header">
                         <h2>Wallets</h2>
-                        <button class="add-panel-btn" onclick="addWalletPanel()">+ Hinzufügen</button>
+                        <button class="add-panel-btn" onclick="addWalletPanel()">+ Add Wallet</button>
                     </div>
                     <div class="panels-column" id="walletsGrid"></div>
                 </div>
@@ -54,7 +54,7 @@
                 <div class="column-right" id="contractsColumn">
                     <div class="section-header">
                         <h2>Smart Contracts</h2>
-                        <button class="add-panel-btn" onclick="addContractPanel()">+ Hinzufügen</button>
+                        <button class="add-panel-btn" onclick="addContractPanel()">+ Add Contract</button>
                     </div>
                     <div class="panels-column" id="contractsGrid"></div>
                 </div>

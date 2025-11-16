@@ -8,6 +8,7 @@ const AppState = {
     alerts: JSON.parse(localStorage.getItem('alerts') || '[]'),
     notes: JSON.parse(localStorage.getItem('notes') || '{}'),
     settings: JSON.parse(localStorage.getItem('settings') || '{"autoRefresh": 30, "notifications": true, "sound": true}'),
+    apiKeys: JSON.parse(localStorage.getItem('apiKeys') || '{}'),
     adaPrice: 0,
     lastBlockTime: 0,
     tps: 0
@@ -32,8 +33,8 @@ function openAddressBook() {
     const modal = createModal('Address Book', `
         <div class="address-book">
             <div class="address-book-header">
-                <input type="text" id="abSearch" placeholder="Suche..." class="search-input">
-                <button onclick="addAddressBookEntry()" class="btn-primary">+ Hinzufügen</button>
+                <input type="text" id="abSearch" placeholder="Search..." class="search-input">
+                <button onclick="addAddressBookEntry()" class="btn-primary">+ Add</button>
             </div>
             <div id="addressBookList" class="address-book-list"></div>
         </div>
@@ -49,7 +50,7 @@ function renderAddressBook() {
     const entries = Object.entries(AppState.addressBook);
     
     if (entries.length === 0) {
-        list.innerHTML = '<div class="empty-state-small">Keine Einträge</div>';
+        list.innerHTML = '<div class="empty-state-small">No entries</div>';
         return;
     }
     
@@ -61,9 +62,9 @@ function renderAddressBook() {
                 ${data.tags ? `<div class="ab-tags">${data.tags.map(t => `<span class="tag">${t}</span>`).join('')}</div>` : ''}
             </div>
             <div class="ab-actions">
-                <button onclick="copyToClipboard('${address}')" class="icon-btn-small" title="Kopieren">📋</button>
-                <button onclick="loadAddressToPanel('${address}')" class="icon-btn-small" title="Laden">📥</button>
-                <button onclick="deleteAddressBookEntry('${address}')" class="icon-btn-small" title="Löschen">🗑️</button>
+                <button onclick="copyToClipboard('${address}')" class="icon-btn-small" title="Copy">⎘</button>
+                <button onclick="loadAddressToPanel('${address}')" class="icon-btn-small" title="Load">↓</button>
+                <button onclick="deleteAddressBookEntry('${address}')" class="icon-btn-small" title="Delete">×</button>
             </div>
         </div>
     `).join('');
@@ -73,13 +74,13 @@ function addAddressBookEntry() {
     const name = prompt('Name:');
     if (!name) return;
     
-    const address = prompt('Adresse:');
+    const address = prompt('Address:');
     if (!address || !isValidCardanoAddress(address)) {
-        showNotification('Ungültige Adresse', 'error');
+        showNotification('Invalid address', 'error');
         return;
     }
     
-    const tags = prompt('Tags (komma-getrennt):');
+    const tags = prompt('Tags (comma-separated):');
     
     AppState.addressBook[address] = {
         name,
@@ -89,15 +90,15 @@ function addAddressBookEntry() {
     
     localStorage.setItem('addressBook', JSON.stringify(AppState.addressBook));
     renderAddressBook();
-    showNotification('Eintrag hinzugefügt', 'success');
+    showNotification('Entry added', 'success');
 }
 
 function deleteAddressBookEntry(address) {
-    if (!confirm('Wirklich löschen?')) return;
+    if (!confirm('Really delete?')) return;
     delete AppState.addressBook[address];
     localStorage.setItem('addressBook', JSON.stringify(AppState.addressBook));
     renderAddressBook();
-    showNotification('Eintrag gelöscht', 'success');
+    showNotification('Entry deleted', 'success');
 }
 
 function loadAddressToPanel(address) {
@@ -118,7 +119,7 @@ function loadAddressToPanel(address) {
     }
     
     closeModal();
-    showNotification('Panel erstellt', 'success');
+    showNotification('Panel created', 'success');
 }
 
 // ==================== TAGS SYSTEM ====================
@@ -169,13 +170,13 @@ function updatePanelTags(panelId) {
                     ${tag} <span class="tag-remove">×</span>
                 </span>
             `).join('') : ''}
-            <button class="tag-add-inline" onclick="promptAddTagInline('${panelId}')" title="Tag hinzufügen">+ Tag</button>
+            <button class="tag-add-inline" onclick="promptAddTagInline('${panelId}')" title="Add tag">+ Tag</button>
         </div>
     `;
 }
 
 function promptAddTagInline(panelId) {
-    const tag = prompt('Tag hinzufügen:');
+    const tag = prompt('Add tag:');
     if (tag && tag.trim()) {
         addTagToPanel(panelId, tag.trim());
     }
@@ -190,7 +191,7 @@ function addNoteToPanel(panelId) {
     if (note) {
         AppState.notes[panelId] = note;
         localStorage.setItem('notes', JSON.stringify(AppState.notes));
-        showNotification('Notiz gespeichert', 'success');
+        showNotification('Note saved', 'success');
     }
 }
 
@@ -221,7 +222,7 @@ function renderAlerts() {
     if (!list) return;
     
     if (AppState.alerts.length === 0) {
-        list.innerHTML = '<div class="empty-state-small">Keine Alerts</div>';
+        list.innerHTML = '<div class="empty-state-small">No alerts</div>';
         return;
     }
     
@@ -243,7 +244,7 @@ function createNewAlert() {
     const address = prompt('Adresse:');
     if (!address) return;
     
-    const condition = prompt('Bedingung (z.B. "balance > 1000"):');
+    const condition = prompt('Condition (e.g. "balance > 1000"):');
     if (!condition) return;
     
     AppState.alerts.push({
@@ -255,7 +256,7 @@ function createNewAlert() {
     
     localStorage.setItem('alerts', JSON.stringify(AppState.alerts));
     renderAlerts();
-    showNotification('Alert erstellt', 'success');
+    showNotification('Alert created', 'success');
 }
 
 function deleteAlert(index) {
@@ -306,47 +307,47 @@ async function performGlobalSearch(query) {
             await refreshContractPanel(panel.id);
         }
         
-        showNotification('Panel erstellt', 'success');
+        showNotification('Panel created', 'success');
         document.getElementById('globalSearch').value = '';
         return;
     }
     
-    showNotification('Nichts gefunden', 'error');
+    showNotification('Nothing found', 'error');
 }
 
 // ==================== SETTINGS ====================
 
 function openSettings() {
-    const modal = createModal('Einstellungen', `
+    const modal = createModal('Settings', `
         <div class="settings-panel">
             <div class="setting-item">
-                <label>Auto-Refresh Interval (Sekunden)</label>
+                <label>Auto-Refresh Interval (seconds)</label>
                 <input type="number" id="settingAutoRefresh" value="${AppState.settings.autoRefresh}" min="10" max="300">
             </div>
             
             <div class="setting-item">
                 <label>
                     <input type="checkbox" id="settingNotifications" ${AppState.settings.notifications ? 'checked' : ''}>
-                    Desktop Notifications aktivieren
+                    Enable Desktop Notifications
                 </label>
             </div>
             
             <div class="setting-item">
                 <label>
                     <input type="checkbox" id="settingSound" ${AppState.settings.sound ? 'checked' : ''}>
-                    Sound-Effekte aktivieren
+                    Enable Sound Effects
                 </label>
             </div>
             
             <div class="setting-item">
                 <label>API Key Management</label>
-                <button onclick="openApiKeyManager()" class="btn-secondary">API Keys verwalten</button>
+                <button onclick="openApiKeyManager()" class="btn-secondary">Manage API Keys</button>
             </div>
             
             <div class="setting-actions">
-                <button onclick="saveSettings()" class="btn-primary">Speichern</button>
-                <button onclick="exportAllData()" class="btn-secondary">Alle Daten exportieren</button>
-                <button onclick="importData()" class="btn-secondary">Daten importieren</button>
+                <button onclick="saveSettings()" class="btn-primary">Save</button>
+                <button onclick="exportAllData()" class="btn-secondary">Export All Data</button>
+                <button onclick="importData()" class="btn-secondary">Import Data</button>
             </div>
         </div>
     `);
@@ -371,7 +372,7 @@ function saveSettings() {
     }
     
     closeModal();
-    showNotification('Einstellungen gespeichert', 'success');
+    showNotification('Settings saved', 'success');
 }
 
 // ==================== NOTIFICATIONS ====================
@@ -480,7 +481,7 @@ function exportAllData() {
     a.click();
     URL.revokeObjectURL(url);
     
-    showNotification('Backup erstellt', 'success');
+    showNotification('Backup created', 'success');
 }
 
 function importData() {
@@ -518,7 +519,7 @@ function importData() {
                 location.reload();
             }
         } catch (error) {
-            showNotification('Import fehlgeschlagen: ' + error.message, 'error');
+            showNotification('Import failed: ' + error.message, 'error');
         }
     };
     
@@ -532,7 +533,7 @@ function generateQRCode(address) {
         <div class="qr-container">
             <div id="qrcode"></div>
             <div class="qr-address">${address}</div>
-            <button onclick="copyToClipboard('${address}')" class="btn-primary">Adresse kopieren</button>
+            <button onclick="copyToClipboard('${address}')" class="btn-primary">Copy Address</button>
         </div>
     `);
     
@@ -552,7 +553,7 @@ function copyToClipboard(text) {
         showNotification('In Zwischenablage kopiert', 'success');
         playSound('success');
     }).catch(err => {
-        showNotification('Kopieren fehlgeschlagen', 'error');
+        showNotification('Copy failed', 'error');
     });
 }
 
@@ -693,9 +694,9 @@ async function exportFilteredTransactions(panelId) {
         a.click();
         URL.revokeObjectURL(url);
         
-        showNotification('CSV exportiert', 'success');
+        showNotification('CSV exported', 'success');
     } catch (error) {
-        showNotification('Export fehlgeschlagen', 'error');
+        showNotification('Export failed', 'error');
     }
 }
 
@@ -734,4 +735,169 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Update network stats every 30 seconds
     setInterval(updateNetworkStats, 30000);
+});
+
+
+// ==================== API KEY MANAGEMENT ====================
+
+function openApiKeyManager() {
+    const hasCustomKeys = Object.keys(AppState.apiKeys).length > 0;
+    
+    const modal = createModal('API Key Management', `
+        <div class="api-key-manager">
+            <div class="api-key-info">
+                <p style="color: rgba(255, 255, 255, 0.7); font-size: 13px; margin-bottom: 20px;">
+                    Configure your own API keys. Keys are stored locally in your browser.
+                    ${!hasCustomKeys ? '<br><strong>Note:</strong> Default keys are provided. Add your own for better rate limits.' : ''}
+                </p>
+            </div>
+            
+            <div class="api-key-section">
+                <h4>Blockfrost API</h4>
+                <div class="api-key-item">
+                    <label>Preprod API Key</label>
+                    <input type="password" id="apiKeyBlockfrostPreprod" 
+                           value="${AppState.apiKeys.blockfrostPreprod || ''}" 
+                           placeholder="${AppState.apiKeys.blockfrostPreprod ? '' : 'Using default key - enter your own'}" 
+                           class="api-key-input">
+                    <button onclick="toggleApiKeyVisibility('apiKeyBlockfrostPreprod')" class="btn-icon">◉</button>
+                </div>
+                <div class="api-key-item">
+                    <label>Mainnet API Key</label>
+                    <input type="password" id="apiKeyBlockfrostMainnet" 
+                           value="${AppState.apiKeys.blockfrostMainnet || ''}" 
+                           placeholder="${AppState.apiKeys.blockfrostMainnet ? '' : 'Using default key - enter your own'}" 
+                           class="api-key-input">
+                    <button onclick="toggleApiKeyVisibility('apiKeyBlockfrostMainnet')" class="btn-icon">◉</button>
+                </div>
+                <a href="https://blockfrost.io" target="_blank" class="api-link">Get Blockfrost API Key →</a>
+            </div>
+            
+            <div class="api-key-section">
+                <h4>Ogmios API</h4>
+                <div class="api-key-item">
+                    <label>API Key</label>
+                    <input type="password" id="apiKeyOgmios" 
+                           value="${AppState.apiKeys.ogmios || ''}" 
+                           placeholder="${AppState.apiKeys.ogmios ? '' : 'Using default key - enter your own'}" 
+                           class="api-key-input">
+                    <button onclick="toggleApiKeyVisibility('apiKeyOgmios')" class="btn-icon">◉</button>
+                </div>
+            </div>
+            
+            <div class="api-key-section">
+                <h4>Kupo API</h4>
+                <div class="api-key-item">
+                    <label>API Key</label>
+                    <input type="password" id="apiKeyKupo" 
+                           value="${AppState.apiKeys.kupo || ''}" 
+                           placeholder="${AppState.apiKeys.kupo ? '' : 'Using default key - enter your own'}" 
+                           class="api-key-input">
+                    <button onclick="toggleApiKeyVisibility('apiKeyKupo')" class="btn-icon">◉</button>
+                </div>
+            </div>
+            
+            <div class="api-key-actions">
+                <button onclick="saveApiKeys()" class="btn-primary">Save API Keys</button>
+                ${hasCustomKeys ? '<button onclick="clearCustomApiKeys()" class="btn-secondary">Clear Custom Keys</button>' : ''}
+                <button onclick="testApiKeys()" class="btn-secondary">Test Connection</button>
+            </div>
+        </div>
+    `);
+}
+
+function toggleApiKeyVisibility(inputId) {
+    const input = document.getElementById(inputId);
+    if (input.type === 'password') {
+        input.type = 'text';
+    } else {
+        input.type = 'password';
+    }
+}
+
+function saveApiKeys() {
+    // Get values from inputs
+    const blockfrostPreprod = document.getElementById('apiKeyBlockfrostPreprod').value.trim();
+    const blockfrostMainnet = document.getElementById('apiKeyBlockfrostMainnet').value.trim();
+    const ogmios = document.getElementById('apiKeyOgmios').value.trim();
+    const kupo = document.getElementById('apiKeyKupo').value.trim();
+    
+    // Save to AppState
+    AppState.apiKeys = {
+        blockfrostPreprod,
+        blockfrostMainnet,
+        ogmios,
+        kupo
+    };
+    
+    // Save to localStorage
+    localStorage.setItem('apiKeys', JSON.stringify(AppState.apiKeys));
+    
+    // Update CONFIG
+    if (blockfrostPreprod) CONFIG.blockfrost.preprod.apiKey = blockfrostPreprod;
+    if (blockfrostMainnet) CONFIG.blockfrost.mainnet.apiKey = blockfrostMainnet;
+    if (ogmios) CONFIG.ogmios.apiKey = ogmios;
+    if (kupo) CONFIG.kupo.apiKey = kupo;
+    
+    closeModal();
+    showNotification('API Keys saved successfully', 'success');
+}
+
+function resetApiKeys() {
+    if (!confirm('Reset all API keys to default values?')) return;
+    
+    // Clear from localStorage
+    localStorage.removeItem('apiKeys');
+    AppState.apiKeys = {};
+    
+    // Reset inputs to default
+    document.getElementById('apiKeyBlockfrostPreprod').value = 'preprodBK8iIIEzfXrzt1tTkhGcbmLNCbRNQnMx';
+    document.getElementById('apiKeyBlockfrostMainnet').value = 'mainnetO1cG3YdwVUoEApkUqh9us0SQTguhmjoV';
+    document.getElementById('apiKeyOgmios').value = 'ogmios1phe89589psdxsg00kh8';
+    document.getElementById('apiKeyKupo').value = 'kupo1gnldyu3nnsu25pea823';
+    
+    showNotification('API Keys reset to default', 'success');
+}
+
+async function testApiKeys() {
+    showNotification('Testing API connection...', 'info');
+    
+    try {
+        // Test Blockfrost
+        const response = await fetch(`${CONFIG.blockfrost[CONFIG.activeNetwork].url}/health`, {
+            headers: {
+                'project_id': CONFIG.blockfrost[CONFIG.activeNetwork].apiKey
+            }
+        });
+        
+        if (response.ok) {
+            showNotification('✓ API connection successful', 'success');
+            playSound('success');
+        } else {
+            showNotification('× API connection failed: ' + response.status, 'error');
+        }
+    } catch (error) {
+        showNotification('× API connection error: ' + error.message, 'error');
+    }
+}
+
+// Load custom API keys on startup
+function loadCustomApiKeys() {
+    if (AppState.apiKeys.blockfrostPreprod) {
+        CONFIG.blockfrost.preprod.apiKey = AppState.apiKeys.blockfrostPreprod;
+    }
+    if (AppState.apiKeys.blockfrostMainnet) {
+        CONFIG.blockfrost.mainnet.apiKey = AppState.apiKeys.blockfrostMainnet;
+    }
+    if (AppState.apiKeys.ogmios) {
+        CONFIG.ogmios.apiKey = AppState.apiKeys.ogmios;
+    }
+    if (AppState.apiKeys.kupo) {
+        CONFIG.kupo.apiKey = AppState.apiKeys.kupo;
+    }
+}
+
+// Initialize on load
+document.addEventListener('DOMContentLoaded', () => {
+    loadCustomApiKeys();
 });

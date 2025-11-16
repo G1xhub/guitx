@@ -69,12 +69,12 @@ function renderWalletPanel(panel) {
                 <h3>Wallet</h3>
                 <div class="panel-tags" id="${panel.id}-tags"></div>
                 <div class="panel-actions">
-                    <button class="icon-btn" onclick="openTransactionFilter('${panel.id}')" title="Filter">🔍</button>
-                    <button class="icon-btn" onclick="showPanelNote('${panel.id}')" title="Notiz">📝</button>
-                    <button class="icon-btn" onclick="generateQRCode('${panel.address || ''}')" title="QR Code">📱</button>
+                    <button class="icon-btn" onclick="openTransactionFilter('${panel.id}')" title="Filter">⚡</button>
+                    <button class="icon-btn" onclick="showPanelNote('${panel.id}')" title="Note">✎</button>
+                    <button class="icon-btn" onclick="generateQRCode('${panel.address || ''}')" title="QR Code">⊡</button>
                     <button class="icon-btn" onclick="refreshWalletPanel('${panel.id}')" title="Refresh">↻</button>
-                    <button class="icon-btn" onclick="exportPanelData('${panel.id}')" title="Export">💾</button>
-                    <button class="icon-btn close-btn" onclick="removePanel('${panel.id}')" title="Entfernen">×</button>
+                    <button class="icon-btn" onclick="exportPanelData('${panel.id}')" title="Export">↓</button>
+                    <button class="icon-btn close-btn" onclick="removePanel('${panel.id}')" title="Remove">×</button>
                 </div>
             </div>
             
@@ -275,9 +275,9 @@ async function refreshWalletPanel(panelId) {
                 <div class="panel-tags-inline"></div>
                 <div class="address-display-small">${formatAddress(panel.address)}</div>
                 <div class="empty-state">
-                    <div class="empty-icon">✨</div>
-                    <div class="empty-text">Neues Wallet</div>
-                    <div class="empty-subtext">Noch keine Aktivität</div>
+                    <div class="empty-icon">○</div>
+                    <div class="empty-text">New Wallet</div>
+                    <div class="empty-subtext">No activity yet</div>
                 </div>
             `;
             updatePanelTags(panel.id);
@@ -359,12 +359,12 @@ function renderContractPanel(panel) {
                 <h3>Smart Contract</h3>
                 <div class="panel-tags" id="${panel.id}-tags"></div>
                 <div class="panel-actions">
-                    <button class="icon-btn" onclick="openTransactionFilter('${panel.id}')" title="Filter">🔍</button>
-                    <button class="icon-btn" onclick="showPanelNote('${panel.id}')" title="Notiz">📝</button>
-                    <button class="icon-btn" onclick="generateQRCode('${panel.address || ''}')" title="QR Code">📱</button>
+                    <button class="icon-btn" onclick="openTransactionFilter('${panel.id}')" title="Filter">⚡</button>
+                    <button class="icon-btn" onclick="showPanelNote('${panel.id}')" title="Note">✎</button>
+                    <button class="icon-btn" onclick="generateQRCode('${panel.address || ''}')" title="QR Code">⊡</button>
                     <button class="icon-btn" onclick="refreshContractPanel('${panel.id}')" title="Refresh">↻</button>
-                    <button class="icon-btn" onclick="exportPanelData('${panel.id}')" title="Export">💾</button>
-                    <button class="icon-btn close-btn" onclick="removePanel('${panel.id}')" title="Entfernen">×</button>
+                    <button class="icon-btn" onclick="exportPanelData('${panel.id}')" title="Export">↓</button>
+                    <button class="icon-btn close-btn" onclick="removePanel('${panel.id}')" title="Remove">×</button>
                 </div>
             </div>
             
@@ -514,9 +514,9 @@ async function refreshContractPanel(panelId) {
                 <div class="panel-tags-inline"></div>
                 <div class="address-display-small">${formatAddress(panel.address)}</div>
                 <div class="empty-state">
-                    <div class="empty-icon">✨</div>
-                    <div class="empty-text">Neuer Contract</div>
-                    <div class="empty-subtext">Noch keine Aktivität</div>
+                    <div class="empty-icon">○</div>
+                    <div class="empty-text">New Contract</div>
+                    <div class="empty-subtext">No activity yet</div>
                 </div>
             `;
             updatePanelTags(panel.id);
@@ -595,18 +595,22 @@ function savePanels() {
 
 function loadSavedPanels() {
     const saved = localStorage.getItem('cardano-dashboard-panels');
+    let hasData = false;
+    
     if (saved) {
         try {
             const data = JSON.parse(saved);
             
-            if (data.wallets) {
+            if (data.wallets && data.wallets.length > 0) {
+                hasData = true;
                 data.wallets.forEach(panel => {
                     walletPanels.push(panel);
                     renderWalletPanel(panel);
                 });
             }
             
-            if (data.contracts) {
+            if (data.contracts && data.contracts.length > 0) {
+                hasData = true;
                 data.contracts.forEach(panel => {
                     contractPanels.push(panel);
                     renderContractPanel(panel);
@@ -622,6 +626,25 @@ function loadSavedPanels() {
             console.error('Fehler beim Laden:', e);
         }
     }
+    
+    // Erstelle Default-Panels beim ersten Start
+    if (!hasData) {
+        createDefaultPanels();
+    }
+}
+
+function createDefaultPanels() {
+    // Erstelle 2 Wallet-Panels
+    for (let i = 0; i < 2; i++) {
+        addWalletPanel();
+    }
+    
+    // Erstelle 2 Contract-Panels
+    for (let i = 0; i < 2; i++) {
+        addContractPanel();
+    }
+    
+    console.log('✓ Default panels created');
 }
 
 // ==================== EXPORT & TX DETAILS ====================
@@ -922,14 +945,8 @@ function updateSectionVisibility() {
         if (toggleContractsBtn) toggleContractsBtn.classList.remove('active');
     }
     
-    // Layout anpassen
-    if (!SectionVisibility.wallets && !SectionVisibility.contracts) {
-        mainLayout.style.gridTemplateColumns = '1fr';
-    } else if (!SectionVisibility.wallets || !SectionVisibility.contracts) {
-        mainLayout.style.gridTemplateColumns = '1fr';
-    } else {
-        mainLayout.style.gridTemplateColumns = '1fr 1fr';
-    }
+    // Kein Layout-Anpassung nötig - Flexbox regelt das automatisch
+    // Kacheln behalten ihre feste Größe (400px)
 }
 
 // Initialize section visibility on load
