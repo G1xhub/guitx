@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cardano Developer Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <div class="logo">
+                <div class="logo-icon">₳</div>
+                <h1>Cardano Dev Dashboard</h1>
+            </div>
+            <div class="network-status">
+                <span class="status-dot"></span>
+                <span id="networkStatus">Preprod Connected</span>
+            </div>
+        </header>
+
+        <main class="main-content">
+            <!-- Linke Seite: Wallet -->
+            <section class="panel left-panel">
+                <div class="panel-header">
+                    <h2>Wallet Overview</h2>
+                    <button class="refresh-btn" onclick="refreshWallet()">↻</button>
+                </div>
+                
+                <div class="info-card">
+                    <div class="card-title">Wallet Address</div>
+                    <input type="text" class="address-input" id="walletAddressInput" 
+                           placeholder="addr1... eingeben" 
+                           onchange="setWalletAddress(this.value)">
+                    <div class="address-display" id="walletAddress" style="margin-top: 10px; font-size: 12px;">
+                        Keine Adresse gesetzt
+                    </div>
+                </div>
+
+                <div class="balance-card">
+                    <div class="balance-label">Balance</div>
+                    <div class="balance-amount" id="walletBalance">
+                        <span class="amount">1,234.56</span>
+                        <span class="currency">₳</span>
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">Total Transactions</div>
+                        <div class="stat-value" id="totalTx">42</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Pending</div>
+                        <div class="stat-value pending" id="pendingTx">2</div>
+                    </div>
+                </div>
+
+                <div class="transactions-list">
+                    <h3>Recent Transactions</h3>
+                    <div id="walletTransactions">
+                        <div class="loading-message">Wallet-Adresse eingeben...</div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Rechte Seite: Smart Contract -->
+            <section class="panel right-panel">
+                <div class="panel-header">
+                    <h2>Smart Contract</h2>
+                    <button class="refresh-btn" onclick="refreshContract()">↻</button>
+                </div>
+                
+                <div class="info-card">
+                    <div class="card-title">Contract Address</div>
+                    <input type="text" class="address-input" id="contractAddressInput" 
+                           placeholder="addr1... eingeben" 
+                           onchange="setContractAddress(this.value)">
+                    <div class="address-display" id="contractAddress" style="margin-top: 10px; font-size: 12px;">
+                        Keine Adresse gesetzt
+                    </div>
+                </div>
+
+                <div class="balance-card">
+                    <div class="balance-label">Locked Value</div>
+                    <div class="balance-amount" id="contractBalance">
+                        <span class="amount">5,678.90</span>
+                        <span class="currency">₳</span>
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-item">
+                        <div class="stat-label">Total Executions</div>
+                        <div class="stat-value" id="totalExec">128</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-label">Active</div>
+                        <div class="stat-value active" id="activeExec">3</div>
+                    </div>
+                </div>
+
+                <div class="transactions-list">
+                    <h3>Contract Transactions</h3>
+                    <div id="contractTransactions">
+                        <div class="loading-message">Contract-Adresse eingeben...</div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="footer">
+            <div class="footer-info">
+                <span>Block Height: <strong id="blockHeight">8,234,567</strong></span>
+                <span>Epoch: <strong id="epoch">412</strong></span>
+                <span>Last Update: <strong id="lastUpdate">Just now</strong></span>
+            </div>
+        </footer>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
