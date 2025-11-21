@@ -1,0 +1,20 @@
+# Local configuration with API keys
+config.local.js
+
+# Node modules (falls später verwendet)
+node_modules/
+
+# Environment variables
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

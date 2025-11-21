@@ -42,6 +42,7 @@ body {
 .logo-icon {
     font-size: 36px;
     background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);
+    background-clip: text;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     animation: pulse 2s ease-in-out infinite;
@@ -128,6 +129,7 @@ body {
     font-size: 24px;
     font-weight: 600;
     background: linear-gradient(135deg, #8b5cf6 0%, #a855f7 100%);
+    background-clip: text;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
 }
@@ -150,36 +152,25 @@ body {
     box-shadow: 0 6px 24px rgba(139, 92, 246, 0.6);
 }
 
-/* Symmetric Layout */
-.symmetric-layout {
+/* Three Column Layout */
+.three-column-layout {
     display: flex;
-    gap: 30px;
+    gap: 20px;
     margin-bottom: 40px;
 }
 
-.column-left,
-.column-right {
+.column-section {
     display: flex;
     flex-direction: column;
-    flex: 1 1 50%;
+    flex: 1;
     min-width: 0;
-    max-width: 50%;
 }
 
 .panels-column {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 20px;
+    grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+    gap: 15px;
 }
-
-/* Wenn eine Column ausgeblendet ist, nimmt sie volle Breite */
-.symmetric-layout:has(.column-left[style*="display: none"]) .column-right,
-.symmetric-layout:has(.column-right[style*="display: none"]) .column-left {
-    max-width: 100%;
-    flex: 1 1 100%;
-}
-
-/* Aber Kacheln bleiben bei max 500px */
 
 /* Legacy grid support (falls noch verwendet) */
 .panels-grid {
@@ -204,6 +195,7 @@ body {
     height: 100%;
     min-height: 680px;
     max-height: 680px;
+    min-width: 380px;
 }
 
 .panel:hover {
@@ -658,9 +650,29 @@ body {
     padding: 30px;
     max-width: 600px;
     width: 90%;
+    max-height: 90vh;
+    overflow-y: auto;
     border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
     animation: slideUp 0.3s ease-out;
+}
+
+.modal-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.modal-content::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+}
+
+.modal-content::-webkit-scrollbar-thumb {
+    background: rgba(139, 92, 246, 0.5);
+    border-radius: 10px;
+}
+
+.modal-content::-webkit-scrollbar-thumb:hover {
+    background: rgba(139, 92, 246, 0.7);
 }
 
 .modal-header {
@@ -866,6 +878,12 @@ body {
 
 
 
+@media (max-width: 1600px) {
+    .panels-column {
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    }
+}
+
 @media (max-width: 1200px) {
     .symmetric-layout {
         flex-direction: column;
@@ -876,6 +894,10 @@ body {
     .column-right {
         max-width: 100%;
         flex: 1 1 100%;
+    }
+    
+    .panels-column {
+        grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     }
 }
 
@@ -944,6 +966,7 @@ body[data-theme="light"] .logo h1 {
 
 body[data-theme="light"] .logo-icon {
     background: linear-gradient(135deg, #5e35b1 0%, #512da8 100%);
+    background-clip: text;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
 }
@@ -1150,6 +1173,7 @@ body[data-theme="light"] .section-header {
 
 body[data-theme="light"] .section-header h2 {
     background: linear-gradient(135deg, #5e35b1 0%, #512da8 100%);
+    background-clip: text;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
 }
@@ -1966,5 +1990,272 @@ body[data-theme="light"] .api-link:hover {
     
     .api-key-actions button {
         width: 100%;
+    }
+}
+
+
+/* ==================== UTXO VISUALIZER ==================== */
+
+.utxo-modal .modal-content {
+    max-width: 1200px;
+    width: 95vw;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.utxo-visualizer-container {
+    width: 100%;
+    min-width: 0;
+}
+
+.utxo-viz-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    padding: 15px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    flex-wrap: wrap;
+    gap: 20px;
+}
+
+.utxo-stats {
+    display: flex;
+    gap: 30px;
+    flex-wrap: wrap;
+}
+
+.utxo-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.utxo-stat .stat-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.utxo-stat .stat-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: #a855f7;
+}
+
+.utxo-legend {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.legend-color {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+}
+
+.utxo-canvas {
+    width: 100%;
+    height: 500px;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 12px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    cursor: default;
+}
+
+.utxo-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    justify-content: flex-end;
+}
+
+/* Light Mode */
+body[data-theme="light"] .utxo-viz-header {
+    background: #f5f5f5;
+}
+
+body[data-theme="light"] .utxo-canvas {
+    background: #fafafa;
+    border-color: #e0e0e0;
+}
+
+body[data-theme="light"] .utxo-stat .stat-value {
+    color: #5e35b1;
+}
+
+body[data-theme="light"] .legend-item {
+    color: #424242;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+    .utxo-modal .modal-content {
+        width: 98vw;
+        padding: 15px;
+    }
+    
+    .utxo-viz-header {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 10px;
+    }
+    
+    .utxo-stats {
+        gap: 15px;
+    }
+    
+    .utxo-canvas {
+        height: 350px;
+    }
+    
+    .utxo-actions {
+        flex-direction: column;
+    }
+    
+    .utxo-actions button {
+        width: 100%;
+    }
+}
+
+@media (max-width: 600px) {
+    .utxo-stats {
+        grid-template-columns: 1fr 1fr;
+        display: grid;
+        width: 100%;
+    }
+    
+    .utxo-legend {
+        width: 100%;
+    }
+    
+    .utxo-canvas {
+        height: 300px;
+    }
+}
+
+
+/* Pool Panel Styles */
+.pool-panel {
+    border-left: 3px solid #ffd700;
+}
+
+.pool-header {
+    margin-bottom: 12px;
+    text-align: center;
+}
+
+.pool-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: #ffffff;
+    margin-bottom: 4px;
+}
+
+.pool-ticker {
+    font-size: 14px;
+    color: #ffd700;
+    font-weight: 500;
+}
+
+.pool-description {
+    font-size: 12px;
+    color: #a0aec0;
+    line-height: 1.4;
+    margin-bottom: 12px;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 6px;
+}
+
+.pool-costs {
+    margin-top: 12px;
+    padding: 10px;
+    background: rgba(255, 215, 0, 0.05);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 215, 0, 0.1);
+}
+
+.cost-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 4px 0;
+}
+
+.cost-label {
+    font-size: 12px;
+    color: #a0aec0;
+}
+
+.cost-value {
+    font-size: 13px;
+    font-weight: 600;
+    color: #ffd700;
+}
+
+.pool-links {
+    margin-top: 12px;
+    text-align: center;
+}
+
+.pool-link {
+    display: inline-block;
+    padding: 8px 16px;
+    background: rgba(102, 126, 234, 0.1);
+    color: #667eea;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: 12px;
+    transition: all 0.2s;
+    border: 1px solid rgba(102, 126, 234, 0.2);
+}
+
+.pool-link:hover {
+    background: rgba(102, 126, 234, 0.2);
+    transform: translateY(-1px);
+}
+
+
+/* Section Title with Status Indicator */
+.section-title-with-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.section-status-indicator {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: transparent;
+    transition: all 0.3s ease;
+    box-shadow: none;
+}
+
+.section-status-indicator.active {
+    background: #00ff88;
+    box-shadow: 0 0 8px rgba(0, 255, 136, 0.6);
+    animation: pulse-glow 2s ease-in-out infinite;
+}
+
+@keyframes pulse-glow {
+    0%, 100% {
+        box-shadow: 0 0 8px rgba(0, 255, 136, 0.6);
+    }
+    50% {
+        box-shadow: 0 0 16px rgba(0, 255, 136, 0.8);
     }
 }

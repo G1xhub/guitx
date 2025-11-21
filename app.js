@@ -1,6 +1,7 @@
 // Globale Variablen
 let walletPanels = [];
 let contractPanels = [];
+let poolPanels = [];
 let panelIdCounter = 0;
 let refreshInterval = null;
 
@@ -69,6 +70,7 @@ function renderWalletPanel(panel) {
                 <h3>Wallet</h3>
                 <div class="panel-tags" id="${panel.id}-tags"></div>
                 <div class="panel-actions">
+                    <button class="icon-btn" onclick="openUTXOVisualizer('${panel.address || ''}')" title="UTXO Visualizer">◉</button>
                     <button class="icon-btn" onclick="openTransactionFilter('${panel.id}')" title="Filter">⚡</button>
                     <button class="icon-btn" onclick="showPanelNote('${panel.id}')" title="Note">✎</button>
                     <button class="icon-btn" onclick="generateQRCode('${panel.address || ''}')" title="QR Code">⊡</button>
@@ -120,6 +122,7 @@ async function setWalletPanelAddress(panelId, address) {
         panel.address = address;
         savePanels();
         await refreshWalletPanel(panelId);
+        updateSectionStatusIndicators();
     }
 }
 
@@ -410,6 +413,7 @@ async function setContractPanelAddress(panelId, address) {
         panel.address = address;
         savePanels();
         await refreshContractPanel(panelId);
+        updateSectionStatusIndicators();
     }
 }
 
@@ -579,6 +583,7 @@ function removePanel(panelId) {
         setTimeout(() => {
             panel.remove();
             walletPanels = walletPanels.filter(p => p.id !== panelId);
+            poolPanels = poolPanels.filter(p => p.id !== panelId);
             contractPanels = contractPanels.filter(p => p.id !== panelId);
             savePanels();
         }, 300);
@@ -588,7 +593,8 @@ function removePanel(panelId) {
 function savePanels() {
     const data = {
         wallets: walletPanels,
-        contracts: contractPanels
+        contracts: contractPanels,
+        pools: poolPanels
     };
     localStorage.setItem('cardano-dashboard-panels', JSON.stringify(data));
 }
@@ -609,6 +615,14 @@ function loadSavedPanels() {
                 });
             }
             
+            if (data.pools && data.pools.length > 0) {
+                hasData = true;
+                data.pools.forEach(panel => {
+                    poolPanels.push(panel);
+                    renderPoolPanel(panel);
+                });
+            }
+            
             if (data.contracts && data.contracts.length > 0) {
                 hasData = true;
                 data.contracts.forEach(panel => {
@@ -619,6 +633,7 @@ function loadSavedPanels() {
             
             panelIdCounter = Math.max(
                 ...walletPanels.map(p => parseInt(p.id.split('-')[1]) || 0),
+                ...poolPanels.map(p => parseInt(p.id.split('-')[1]) || 0),
                 ...contractPanels.map(p => parseInt(p.id.split('-')[1]) || 0),
                 0
             ) + 1;
@@ -639,6 +654,9 @@ function createDefaultPanels() {
         addWalletPanel();
     }
     
+    // Erstelle 1 Pool-Panel
+    addPoolPanel();
+    
     // Erstelle 2 Contract-Panels
     for (let i = 0; i < 2; i++) {
         addContractPanel();
@@ -650,15 +668,15 @@ function createDefaultPanels() {
 // ==================== EXPORT & TX DETAILS ====================
 
 function exportPanelData(panelId) {
-    const panel = [...walletPanels, ...contractPanels].find(p => p.id === panelId);
-    if (!panel || !panel.address) {
+    const panel = [...walletPanels, ...poolPanels, ...contractPanels].find(p => p.id === panelId);
+    if (!panel) {
         showNotification('Keine Daten zum Exportieren', 'error');
         return;
     }
     
     const data = {
         type: panel.type,
-        address: panel.address,
+        address: panel.address || panel.poolId,
         network: CONFIG.activeNetwork,
         exportedAt: new Date().toISOString()
     };
@@ -667,7 +685,8 @@ function exportPanelData(panelId) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${panel.type}-${formatAddress(panel.address)}-${Date.now()}.json`;
+    const identifier = panel.address ? formatAddress(panel.address) : (panel.poolId ? panel.poolId.substring(0, 12) : 'panel');
+    a.download = `${panel.type}-${identifier}-${Date.now()}.json`;
     a.click();
     URL.revokeObjectURL(url);
     
@@ -758,6 +777,9 @@ function startAutoRefresh() {
         await updateBlockchainInfo();
         walletPanels.forEach(panel => {
             if (panel.address) refreshWalletPanel(panel.id);
+        });
+        poolPanels.forEach(panel => {
+            if (panel.poolId) refreshPoolPanel(panel.id);
         });
         contractPanels.forEach(panel => {
             if (panel.address) refreshContractPanel(panel.id);
@@ -904,27 +926,31 @@ function checkAlerts(address, balance) {
 // ==================== SECTION TOGGLE ====================
 
 const SectionVisibility = {
-    wallets: localStorage.getItem('walletsVisible') !== 'false',
-    contracts: localStorage.getItem('contractsVisible') !== 'false'
+    wallets: localStorage.getItem('walletsVisible') === null ? true : localStorage.getItem('walletsVisible') !== 'false',
+    pools: localStorage.getItem('poolsVisible') === null ? true : localStorage.getItem('poolsVisible') !== 'false',
+    contracts: localStorage.getItem('contractsVisible') === null ? true : localStorage.getItem('contractsVisible') !== 'false'
 };
 
 function toggleSection(section) {
     if (section === 'wallets') {
         SectionVisibility.wallets = !SectionVisibility.wallets;
         localStorage.setItem('walletsVisible', SectionVisibility.wallets);
-        updateSectionVisibility();
+    } else if (section === 'pools') {
+        SectionVisibility.pools = !SectionVisibility.pools;
+        localStorage.setItem('poolsVisible', SectionVisibility.pools);
     } else if (section === 'contracts') {
         SectionVisibility.contracts = !SectionVisibility.contracts;
         localStorage.setItem('contractsVisible', SectionVisibility.contracts);
-        updateSectionVisibility();
     }
+    updateSectionVisibility();
 }
 
 function updateSectionVisibility() {
     const walletsColumn = document.getElementById('walletsColumn');
+    const poolsColumn = document.getElementById('poolsColumn');
     const contractsColumn = document.getElementById('contractsColumn');
-    const mainLayout = document.getElementById('mainLayout');
     const toggleWalletsBtn = document.getElementById('toggleWalletsBtn');
+    const togglePoolsBtn = document.getElementById('togglePoolsBtn');
     const toggleContractsBtn = document.getElementById('toggleContractsBtn');
     
     // Wallets Section
@@ -936,6 +962,15 @@ function updateSectionVisibility() {
         if (toggleWalletsBtn) toggleWalletsBtn.classList.remove('active');
     }
     
+    // Pools Section
+    if (SectionVisibility.pools) {
+        poolsColumn.style.display = 'flex';
+        if (togglePoolsBtn) togglePoolsBtn.classList.add('active');
+    } else {
+        poolsColumn.style.display = 'none';
+        if (togglePoolsBtn) togglePoolsBtn.classList.remove('active');
+    }
+    
     // Contracts Section
     if (SectionVisibility.contracts) {
         contractsColumn.style.display = 'flex';
@@ -944,9 +979,6 @@ function updateSectionVisibility() {
         contractsColumn.style.display = 'none';
         if (toggleContractsBtn) toggleContractsBtn.classList.remove('active');
     }
-    
-    // Kein Layout-Anpassung nötig - Flexbox regelt das automatisch
-    // Kacheln behalten ihre feste Größe (400px)
 }
 
 // Initialize section visibility on load
@@ -954,6 +986,228 @@ document.addEventListener('DOMContentLoaded', () => {
     updateSectionVisibility();
 });
 
-        
-        // Update tags after rendering content
+
+// ==================== POOL PANELS ====================
+
+function addPoolPanel() {
+    const panelId = `pool-${panelIdCounter++}`;
+    const panel = {
+        id: panelId,
+        type: 'pool',
+        poolId: null
+    };
+    
+    poolPanels.push(panel);
+    renderPoolPanel(panel);
+    savePanels();
+}
+
+function renderPoolPanel(panel) {
+    const grid = document.getElementById('poolsGrid');
+    const panelHtml = `
+        <div class="panel pool-panel" id="${panel.id}" data-panel-id="${panel.id}">
+            <div class="panel-header">
+                <h3>Stake Pool</h3>
+                <div class="panel-tags" id="${panel.id}-tags"></div>
+                <div class="panel-actions">
+                    <button class="icon-btn" onclick="showPanelNote('${panel.id}')" title="Note">✎</button>
+                    <button class="icon-btn" onclick="refreshPoolPanel('${panel.id}')" title="Refresh">↻</button>
+                    <button class="icon-btn" onclick="exportPanelData('${panel.id}')" title="Export">↓</button>
+                    <button class="icon-btn close-btn" onclick="removePanel('${panel.id}')" title="Remove">×</button>
+                </div>
+            </div>
+            
+            <div class="address-input-container">
+                <input type="text" class="address-input" 
+                       placeholder="pool1... (Pool ID)" 
+                       onchange="setPoolPanelId('${panel.id}', this.value)"
+                       value="${panel.poolId || ''}">
+            </div>
+            
+            <div class="panel-content" id="${panel.id}-content">
+                <div class="loading-message">Pool ID eingeben...</div>
+            </div>
+        </div>
+    `;
+    
+    grid.insertAdjacentHTML('beforeend', panelHtml);
+    
+    // Make draggable
+    const panelElement = document.getElementById(panel.id);
+    makePanelDraggable(panelElement);
+    
+    if (panel.poolId) {
+        refreshPoolPanel(panel.id);
+    } else {
         updatePanelTags(panel.id);
+    }
+}
+
+async function setPoolPanelId(panelId, poolId) {
+    if (!poolId || poolId.trim() === '') return;
+    
+    poolId = poolId.trim();
+    
+    if (!poolId.startsWith('pool1')) {
+        showNotification('Ungültige Pool ID (muss mit pool1 beginnen)', 'error');
+        return;
+    }
+    
+    const panel = poolPanels.find(p => p.id === panelId);
+    if (panel) {
+        panel.poolId = poolId;
+        savePanels();
+        await refreshPoolPanel(panelId);
+    }
+}
+
+async function refreshPoolPanel(panelId) {
+    const panel = poolPanels.find(p => p.id === panelId);
+    if (!panel || !panel.poolId) return;
+    
+    const contentDiv = document.getElementById(`${panelId}-content`);
+    
+    // Loading-Overlay
+    let loadingOverlay = contentDiv.querySelector('.loading-overlay');
+    if (!loadingOverlay) {
+        loadingOverlay = document.createElement('div');
+        loadingOverlay.className = 'loading-overlay';
+        loadingOverlay.innerHTML = '<div class="loading-spinner">↻</div>';
+        contentDiv.appendChild(loadingOverlay);
+    }
+    loadingOverlay.style.display = 'flex';
+    
+    try {
+        const poolInfo = await blockfrostRequest(`/pools/${panel.poolId}`);
+        const poolMetadata = await blockfrostRequest(`/pools/${panel.poolId}/metadata`);
+        
+        // Pool Stats
+        const activeStake = parseInt(poolInfo.active_stake) / 1000000;
+        const liveStake = parseInt(poolInfo.live_stake) / 1000000;
+        const liveSaturation = poolInfo.live_saturation * 100;
+        const margin = poolInfo.margin_cost * 100;
+        const fixedCost = parseInt(poolInfo.fixed_cost) / 1000000;
+        
+        // Entferne Loading-Overlay
+        if (loadingOverlay) {
+            loadingOverlay.style.display = 'none';
+        }
+        
+        // Render Content
+        contentDiv.innerHTML = `
+            <div class="panel-tags-inline"></div>
+            
+            ${poolMetadata ? `
+                <div class="pool-header">
+                    <div class="pool-name">${poolMetadata.name || 'Unknown Pool'}</div>
+                    <div class="pool-ticker">[${poolMetadata.ticker || 'N/A'}]</div>
+                </div>
+                ${poolMetadata.description ? `<div class="pool-description">${poolMetadata.description.substring(0, 100)}${poolMetadata.description.length > 100 ? '...' : ''}</div>` : ''}
+            ` : `
+                <div class="pool-header">
+                    <div class="pool-name">Pool ${panel.poolId.substring(0, 12)}...</div>
+                </div>
+            `}
+            
+            <div class="stats-row">
+                <div class="stat-compact">
+                    <div class="stat-label">Live Stake</div>
+                    <div class="stat-value">${(liveStake / 1000000).toFixed(2)}M ₳</div>
+                </div>
+                <div class="stat-compact">
+                    <div class="stat-label">Saturation</div>
+                    <div class="stat-value">${liveSaturation.toFixed(1)}%</div>
+                </div>
+            </div>
+            
+            <div class="stats-row">
+                <div class="stat-compact">
+                    <div class="stat-label">Blocks</div>
+                    <div class="stat-value">${poolInfo.blocks_minted || 0}</div>
+                </div>
+                <div class="stat-compact">
+                    <div class="stat-label">Delegators</div>
+                    <div class="stat-value">${poolInfo.live_delegators || 0}</div>
+                </div>
+            </div>
+            
+            <div class="pool-costs">
+                <div class="cost-item">
+                    <span class="cost-label">Fixed Cost:</span>
+                    <span class="cost-value">${fixedCost.toFixed(0)} ₳</span>
+                </div>
+                <div class="cost-item">
+                    <span class="cost-label">Margin:</span>
+                    <span class="cost-value">${margin.toFixed(2)}%</span>
+                </div>
+            </div>
+            
+            ${poolMetadata && poolMetadata.homepage ? `
+                <div class="pool-links">
+                    <a href="${poolMetadata.homepage}" target="_blank" class="pool-link">🔗 Website</a>
+                </div>
+            ` : ''}
+        `;
+        
+        updatePanelTags(panel.id);
+        
+    } catch (error) {
+        console.error('Pool-Panel-Fehler:', error);
+        
+        if (loadingOverlay) {
+            loadingOverlay.style.display = 'none';
+        }
+        
+        if (error.message.includes('404') || error.message.includes('not found')) {
+            contentDiv.innerHTML = `
+                <div class="panel-tags-inline"></div>
+                <div class="empty-state">
+                    <div class="empty-icon">○</div>
+                    <div class="empty-text">Pool nicht gefunden</div>
+                    <div class="empty-subtext">Überprüfe die Pool ID</div>
+                </div>
+            `;
+            updatePanelTags(panel.id);
+        } else {
+            contentDiv.innerHTML = `<div class="error-message">❌ ${error.message}</div>`;
+        }
+    }
+}
+
+
+// ==================== STATUS INDICATORS ====================
+
+function updateSectionStatusIndicators() {
+    // Wallets Status
+    const walletsIndicator = document.getElementById('walletsStatusIndicator');
+    const hasLoadedWallets = walletPanels.some(p => p.address && p.address.trim() !== '');
+    if (walletsIndicator) {
+        if (hasLoadedWallets) {
+            walletsIndicator.classList.add('active');
+        } else {
+            walletsIndicator.classList.remove('active');
+        }
+    }
+    
+    // Contracts Status
+    const contractsIndicator = document.getElementById('contractsStatusIndicator');
+    const hasLoadedContracts = contractPanels.some(p => p.address && p.address.trim() !== '');
+    if (contractsIndicator) {
+        if (hasLoadedContracts) {
+            contractsIndicator.classList.add('active');
+        } else {
+            contractsIndicator.classList.remove('active');
+        }
+    }
+    
+    // Pools Status
+    const poolsIndicator = document.getElementById('poolsStatusIndicator');
+    const hasLoadedPools = poolPanels.some(p => p.poolId && p.poolId.trim() !== '');
+    if (poolsIndicator) {
+        if (hasLoadedPools) {
+            poolsIndicator.classList.add('active');
+        } else {
+            poolsIndicator.classList.remove('active');
+        }
+    }
+}

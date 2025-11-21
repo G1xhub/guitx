@@ -4,29 +4,98 @@ const CONFIG = {
     blockfrost: {
         preprod: {
             url: 'https://cardano-preprod.blockfrost.io/api/v0',
-            apiKey: 'preprodBK8iIIEzfXrzt1tTkhGcbmLNCbRNQnMx'
+            apiKey: '' // Wird aus localStorage oder config.local.js geladen
         },
         mainnet: {
             url: 'https://cardano-mainnet.blockfrost.io/api/v0',
-            apiKey: 'mainnetO1cG3YdwVUoEApkUqh9us0SQTguhmjoV'
+            apiKey: '' // Wird aus localStorage oder config.local.js geladen
         }
     },
     
     // Ogmios API
     ogmios: {
-        url: 'https://ogmios1phe89589psdxsg00kh8.cardano-preprod-v6.ogmios-m1.dmtr.host',
-        apiKey: 'ogmios1phe89589psdxsg00kh8'
+        url: '', // Wird aus localStorage oder config.local.js geladen
+        apiKey: '' // Wird aus localStorage oder config.local.js geladen
     },
     
     // Kupo API
     kupo: {
-        url: 'https://kupo1gnldyu3nnsu25pea823.cardano-preprod-v2.kupo-m1.dmtr.host',
-        apiKey: 'kupo1gnldyu3nnsu25pea823'
+        url: '', // Wird aus localStorage oder config.local.js geladen
+        apiKey: '' // Wird aus localStorage oder config.local.js geladen
     },
     
     // Aktives Netzwerk
     activeNetwork: 'preprod' // 'preprod' oder 'mainnet'
 };
+
+// Lade Konfiguration aus verschiedenen Quellen
+function loadConfig() {
+    console.log('🔧 Loading configuration...');
+    
+    // 1. Versuche config.local.js zu laden (falls vorhanden)
+    if (typeof LOCAL_CONFIG !== 'undefined') {
+        console.log('✓ Loading config from config.local.js');
+        if (LOCAL_CONFIG.blockfrost?.preprod?.apiKey) {
+            CONFIG.blockfrost.preprod.apiKey = LOCAL_CONFIG.blockfrost.preprod.apiKey;
+            console.log('  - Blockfrost Preprod API Key loaded');
+        }
+        if (LOCAL_CONFIG.blockfrost?.mainnet?.apiKey) {
+            CONFIG.blockfrost.mainnet.apiKey = LOCAL_CONFIG.blockfrost.mainnet.apiKey;
+            console.log('  - Blockfrost Mainnet API Key loaded');
+        }
+        if (LOCAL_CONFIG.ogmios?.url) {
+            CONFIG.ogmios.url = LOCAL_CONFIG.ogmios.url;
+        }
+        if (LOCAL_CONFIG.ogmios?.apiKey) {
+            CONFIG.ogmios.apiKey = LOCAL_CONFIG.ogmios.apiKey;
+        }
+        if (LOCAL_CONFIG.kupo?.url) {
+            CONFIG.kupo.url = LOCAL_CONFIG.kupo.url;
+        }
+        if (LOCAL_CONFIG.kupo?.apiKey) {
+            CONFIG.kupo.apiKey = LOCAL_CONFIG.kupo.apiKey;
+        }
+    } else {
+        console.log('ℹ No config.local.js found');
+    }
+    
+    // 2. Überschreibe mit localStorage (höchste Priorität)
+    const savedApiKeys = localStorage.getItem('apiKeys');
+    if (savedApiKeys) {
+        try {
+            const keys = JSON.parse(savedApiKeys);
+            console.log('✓ Loading config from localStorage');
+            
+            if (keys.blockfrostPreprod) {
+                CONFIG.blockfrost.preprod.apiKey = keys.blockfrostPreprod;
+            }
+            if (keys.blockfrostMainnet) {
+                CONFIG.blockfrost.mainnet.apiKey = keys.blockfrostMainnet;
+            }
+            if (keys.ogmiosUrl) {
+                CONFIG.ogmios.url = keys.ogmiosUrl;
+            }
+            if (keys.ogmiosKey) {
+                CONFIG.ogmios.apiKey = keys.ogmiosKey;
+            }
+            if (keys.kupoUrl) {
+                CONFIG.kupo.url = keys.kupoUrl;
+            }
+            if (keys.kupoKey) {
+                CONFIG.kupo.apiKey = keys.kupoKey;
+            }
+        } catch (e) {
+            console.error('Error loading API keys from localStorage:', e);
+        }
+    }
+    
+    // 3. Warne wenn keine API-Keys konfiguriert sind
+    if (!CONFIG.blockfrost.preprod.apiKey && !CONFIG.blockfrost.mainnet.apiKey) {
+        console.warn('⚠ No API keys configured! Please configure them in Settings or create config.local.js');
+    } else {
+        console.log('✓ Configuration loaded successfully');
+    }
+}
 
 // Helper-Funktion für Blockfrost API-Calls
 async function blockfrostRequest(endpoint, network = CONFIG.activeNetwork) {

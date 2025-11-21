@@ -87,20 +87,59 @@ Ein professionelles, feature-reiches Dashboard für Cardano-Entwickler zum Über
 
 ## 🔧 Konfiguration
 
-Das Dashboard ist bereits mit echten Cardano APIs konfiguriert:
+### API-Keys einrichten
 
-- **Blockfrost API** (Preprod & Mainnet)
-- **Ogmios API** (Preprod)
-- **Kupo API** (Preprod)
-- **CoinGecko API** (ADA Price)
+Das Dashboard benötigt API-Keys für Cardano-Blockchain-Zugriff. Es gibt **3 Möglichkeiten**:
+
+#### Option 1: Settings UI (Empfohlen für Endnutzer)
+1. Öffne das Dashboard
+2. Klicke auf **⚙ Settings** im Header
+3. Gehe zu **API Keys**
+4. Trage deine API-Keys ein
+5. Keys werden im Browser (localStorage) gespeichert
+
+#### Option 2: config.local.js (Empfohlen für Entwickler)
+1. Kopiere `config.local.example.js` zu `config.local.js`
+2. Trage deine API-Keys ein:
+```javascript
+const LOCAL_CONFIG = {
+    blockfrost: {
+        preprod: {
+            apiKey: 'preprod_YOUR_API_KEY_HERE'
+        },
+        mainnet: {
+            apiKey: 'mainnet_YOUR_API_KEY_HERE'
+        }
+    },
+    ogmios: {
+        url: 'YOUR_OGMIOS_URL_HERE',
+        apiKey: 'YOUR_OGMIOS_API_KEY_HERE'
+    },
+    kupo: {
+        url: 'YOUR_KUPO_URL_HERE',
+        apiKey: 'YOUR_KUPO_API_KEY_HERE'
+    }
+};
+```
+3. `config.local.js` wird **nicht** ins Git committed (siehe `.gitignore`)
+
+#### Option 3: Direkt in config.js (Nicht empfohlen)
+Nur für Tests - **NIEMALS** ins Git committen!
+
+### API-Keys erhalten
+
+- **Blockfrost**: [blockfrost.io](https://blockfrost.io) - Kostenloser Account
+- **Ogmios/Kupo**: [demeter.run](https://demeter.run) oder selbst hosten
+
+### Priorität der Konfiguration
+
+1. **localStorage** (Settings UI) - Höchste Priorität
+2. **config.local.js** - Mittlere Priorität
+3. **config.js** - Niedrigste Priorität (Defaults)
 
 ### Netzwerk wechseln
 
-Klicke einfach auf **Preprod** oder **Mainnet** im Header, oder ändere in `config.js`:
-
-```javascript
-activeNetwork: 'preprod' // oder 'mainnet'
-```
+Klicke einfach auf **Preprod** oder **Mainnet** im Header
 
 ### Auto-Refresh anpassen
 
@@ -177,10 +216,16 @@ Farben und Effekte können in `styles.css` angepasst werden:
 
 ## 🔐 Sicherheit
 
-- Alle API-Keys sind in `config.js` konfigurierbar
-- Keine Daten werden an externe Server gesendet (außer Blockchain-APIs)
-- Alle Daten werden lokal im Browser gespeichert
-- Keine Wallet-Integration = Keine Private Keys
+- **API-Keys**: Nutze `config.local.js` (wird nicht ins Git committed)
+- **localStorage**: API-Keys werden verschlüsselt im Browser gespeichert
+- **Keine Server**: Alle Daten bleiben lokal im Browser
+- **Keine Private Keys**: Nur Read-Only Blockchain-Zugriff
+- **HTTPS**: Alle API-Calls über verschlüsselte Verbindungen
+
+### ⚠️ Wichtig
+- **NIEMALS** `config.local.js` ins Git committen
+- **NIEMALS** API-Keys öffentlich teilen
+- Nutze separate Keys für Preprod/Mainnet
 
 ## 🚧 Roadmap
 
