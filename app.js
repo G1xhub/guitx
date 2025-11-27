@@ -1211,3 +1211,85 @@ function updateSectionStatusIndicators() {
         }
     }
 }
+
+
+// ==================== SIDEBAR ====================
+
+function toggleSidebar() {
+    const sidebar = document.getElementById('sidebar');
+    const body = document.body;
+    
+    if (sidebar.classList.contains('collapsed')) {
+        sidebar.classList.remove('collapsed');
+        body.classList.remove('sidebar-collapsed');
+        localStorage.setItem('sidebarCollapsed', 'false');
+    } else {
+        sidebar.classList.add('collapsed');
+        body.classList.add('sidebar-collapsed');
+        localStorage.setItem('sidebarCollapsed', 'true');
+    }
+}
+
+// Lade Sidebar-Status beim Start
+function loadSidebarState() {
+    const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+    if (isCollapsed) {
+        document.getElementById('sidebar').classList.add('collapsed');
+        document.body.classList.add('sidebar-collapsed');
+    }
+}
+
+// Sidebar Navigation
+function switchApp(appName) {
+    // Hide all views
+    document.querySelectorAll('.app-view').forEach(view => {
+        view.style.display = 'none';
+    });
+    
+    // Show selected view
+    if (appName === 'dashboard') {
+        document.getElementById('dashboardView').style.display = 'block';
+    } else if (appName === 'tx-builder') {
+        document.getElementById('txBuilderView').style.display = 'block';
+        TxBuilder.render();
+    }
+    
+    // Update page title
+    const titles = {
+        'dashboard': 'GUItx Dashboard',
+        'tx-builder': 'Transaction Builder'
+    };
+    
+    const titleElement = document.querySelector('.page-title .logo h1');
+    if (titleElement) {
+        titleElement.textContent = titles[appName] || 'GUItx Dashboard';
+    }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    loadSidebarState();
+    
+    // Navigation Items
+    const sidebarItems = document.querySelectorAll('.sidebar-item');
+    sidebarItems.forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.preventDefault();
+            const app = item.getAttribute('data-app');
+            
+            // Entferne active von allen Items
+            sidebarItems.forEach(i => i.classList.remove('active'));
+            
+            // Setze active auf geklicktes Item
+            item.classList.add('active');
+            
+            // Navigation Logic
+            if (app === 'dashboard') {
+                switchApp('dashboard');
+            } else if (app === 'tx-builder') {
+                switchApp('tx-builder');
+            } else if (app === 'settings') {
+                openSettings();
+            }
+        });
+    });
+});

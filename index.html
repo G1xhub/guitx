@@ -7,12 +7,43 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar" id="sidebar">
+        <div class="sidebar-toggle" onclick="toggleSidebar()">
+            <span class="toggle-icon">◀</span>
+        </div>
+        
+        <nav class="sidebar-nav">
+            <a href="#" class="sidebar-item active" data-app="dashboard" title="Dashboard">
+                <span class="sidebar-icon">▦</span>
+                <span class="sidebar-label">Dashboard</span>
+            </a>
+            
+            <a href="#" class="sidebar-item" data-app="tx-builder" title="TX Builder">
+                <span class="sidebar-icon">⚒</span>
+                <span class="sidebar-label">TX Builder</span>
+            </a>
+            
+            <div class="sidebar-divider"></div>
+            
+            <a href="#" class="sidebar-item" data-app="settings" title="Settings">
+                <span class="sidebar-icon">⚙</span>
+                <span class="sidebar-label">Settings</span>
+            </a>
+        </nav>
+    </aside>
+
     <div class="container">
-        <header class="header">
+        <!-- Page Title -->
+        <div class="page-title">
             <div class="logo">
                 <div class="logo-icon">₳</div>
                 <h1>GUItx Dashboard</h1>
             </div>
+        </div>
+
+        <!-- Header Controls -->
+        <header class="header">
             <div class="header-controls">
                 <div class="search-bar">
                     <input type="text" id="globalSearch" placeholder="Search TX-Hash, Address..." onkeyup="handleGlobalSearch(event)">
@@ -31,6 +62,9 @@
                 <button class="icon-btn-header" onclick="toggleTheme()" title="Toggle Theme">◐</button>
                 <button class="icon-btn-header" onclick="openAddressBook()" title="Address Book">AB</button>
                 <button class="icon-btn-header" onclick="openSettings()" title="Settings">⚙</button>
+            </div>
+            
+            <div class="header-right">
                 <div class="network-switcher">
                     <button class="network-btn" onclick="switchNetwork('preprod')" id="btnPreprod">Preprod</button>
                     <button class="network-btn" onclick="switchNetwork('mainnet')" id="btnMainnet">Mainnet</button>
@@ -42,7 +76,9 @@
             </div>
         </header>
 
-        <main class="main-content">
+        <main class="main-content" id="mainContent">
+            <!-- Dashboard View -->
+            <div class="app-view" id="dashboardView">
             <div class="three-column-layout" id="mainLayout">
                 <!-- Wallets Section -->
                 <div class="column-section" id="walletsColumn">
@@ -80,6 +116,12 @@
                     <div class="panels-column" id="poolsGrid"></div>
                 </div>
             </div>
+            </div>
+            
+            <!-- TX Builder View -->
+            <div class="app-view" id="txBuilderView" style="display: none;">
+                <div id="txBuilderContent"></div>
+            </div>
         </main>
 
         <footer class="footer">
@@ -107,6 +149,7 @@
     </script>
     <script src="features.js"></script>
     <script src="utxo-visualizer.js"></script>
+    <script src="tx-builder.js"></script>
     <script src="app.js"></script>
 </body>
 </html>
