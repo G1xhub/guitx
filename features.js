@@ -901,3 +901,294 @@ function loadCustomApiKeys() {
 document.addEventListener('DOMContentLoaded', () => {
     loadCustomApiKeys();
 });
+
+
+// ==================== ENV IMPORT ====================
+
+let envImportData = {
+    addresses: [],
+    selectedAddresses: new Set()
+};
+
+function openEnvImport() {
+    const modal = createModal('Import from .env', `
+        <div class="env-import-container">
+            <div class="env-drop-zone" id="envDropZone">
+                <div class="env-drop-icon">▼</div>
+                <div class="env-drop-text">Drag & Drop .env file here</div>
+                <div class="env-drop-subtext">or click to select file</div>
+                <input type="file" id="envFileInput" accept=".env" style="display: none;">
+            </div>
+            
+            <div id="envImportResults" style="display: none;">
+                <div class="env-import-header">
+                    <h4>Found Addresses</h4>
+                    <label class="select-all-label">
+                        <input type="checkbox" id="selectAllAddresses" onchange="toggleSelectAllAddresses()">
+                        Select All
+                    </label>
+                </div>
+                <div class="env-addresses-list" id="envAddressesList"></div>
+                
+                <div class="env-import-actions">
+                    <button class="btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button class="btn-primary" onclick="importSelectedAddresses()" id="importBtn">
+                        Import Selected (<span id="selectedCount">0</span>)
+                    </button>
+                </div>
+            </div>
+        </div>
+    `);
+    
+    setupEnvDropZone();
+}
+
+function setupEnvDropZone() {
+    const dropZone = document.getElementById('envDropZone');
+    const fileInput = document.getElementById('envFileInput');
+    
+    dropZone.addEventListener('click', () => fileInput.click());
+    
+    dropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        dropZone.classList.add('drag-over');
+    });
+    
+    dropZone.addEventListener('dragleave', () => {
+        dropZone.classList.remove('drag-over');
+    });
+    
+    dropZone.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('drag-over');
+        
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+            handleEnvFile(files[0]);
+        }
+    });
+    
+    fileInput.addEventListener('change', (e) => {
+        if (e.target.files.length > 0) {
+            handleEnvFile(e.target.files[0]);
+        }
+    });
+}
+
+async function handleEnvFile(file) {
+    if (!file.name.endsWith('.env')) {
+        showNotification('Please select a .env file', 'error');
+        return;
+    }
+    
+    try {
+        const text = await file.text();
+        const addresses = parseEnvFile(text);
+        
+        if (addresses.length === 0) {
+            showNotification('No Cardano addresses found in file', 'warning');
+            return;
+        }
+        
+        envImportData.addresses = addresses;
+        envImportData.selectedAddresses.clear();
+        
+        renderEnvAddressesList();
+        
+        document.getElementById('envDropZone').style.display = 'none';
+        document.getElementById('envImportResults').style.display = 'block';
+        
+        showNotification(`Found ${addresses.length} address${addresses.length > 1 ? 'es' : ''}`, 'success');
+    } catch (error) {
+        showNotification('Error reading file: ' + error.message, 'error');
+    }
+}
+
+function parseEnvFile(content) {
+    const addresses = [];
+    const lines = content.split('\n');
+    
+    // Get all existing addresses for duplicate detection
+    const existingAddresses = new Set([
+        ...walletPanels.map(p => p.address).filter(Boolean),
+        ...contractPanels.map(p => p.address).filter(Boolean),
+        ...poolPanels.map(p => p.poolId).filter(Boolean)
+    ]);
+    
+    for (const line of lines) {
+        const trimmed = line.trim();
+        
+        // Skip comments and empty lines
+        if (!trimmed || trimmed.startsWith('#')) continue;
+        
+        // Parse KEY=VALUE format
+        const equalIndex = trimmed.indexOf('=');
+        if (equalIndex === -1) continue;
+        
+        const key = trimmed.substring(0, equalIndex).trim();
+        let value = trimmed.substring(equalIndex + 1).trim();
+        
+        // Remove quotes if present
+        if ((value.startsWith('"') && value.endsWith('"')) || 
+            (value.startsWith("'") && value.endsWith("'"))) {
+            value = value.slice(1, -1);
+        }
+        
+        // Detect address type
+        const addressInfo = detectAddressType(value);
+        if (addressInfo) {
+            addresses.push({
+                key: key,
+                address: value,
+                type: addressInfo.type,
+                typeLabel: addressInfo.label,
+                icon: addressInfo.icon,
+                isDuplicate: existingAddresses.has(value)
+            });
+        }
+    }
+    
+    return addresses;
+}
+
+function detectAddressType(address) {
+    // Wallet addresses
+    if (address.startsWith('addr1') && !address.startsWith('addr1w')) {
+        return { type: 'wallet', label: 'Wallet', icon: '♦' };
+    }
+    if (address.startsWith('addr_test1') && !address.startsWith('addr_test1w')) {
+        return { type: 'wallet', label: 'Wallet (Testnet)', icon: '♦' };
+    }
+    
+    // Contract addresses (script addresses contain 'w')
+    if (address.startsWith('addr1w')) {
+        return { type: 'contract', label: 'Smart Contract', icon: '◎' };
+    }
+    if (address.startsWith('addr_test1w')) {
+        return { type: 'contract', label: 'Contract (Testnet)', icon: '◎' };
+    }
+    
+    // Pool addresses
+    if (address.startsWith('pool1')) {
+        return { type: 'pool', label: 'Stake Pool', icon: '◉' };
+    }
+    
+    // Stake addresses
+    if (address.startsWith('stake1')) {
+        return { type: 'stake', label: 'Staking', icon: '⊙' };
+    }
+    if (address.startsWith('stake_test1')) {
+        return { type: 'stake', label: 'Staking (Testnet)', icon: '⊙' };
+    }
+    
+    return null;
+}
+
+function renderEnvAddressesList() {
+    const listContainer = document.getElementById('envAddressesList');
+    
+    if (envImportData.addresses.length === 0) {
+        listContainer.innerHTML = '<div class="env-empty-state">No addresses found</div>';
+        return;
+    }
+    
+    listContainer.innerHTML = envImportData.addresses.map((item, index) => `
+        <div class="env-address-item ${item.isDuplicate ? 'duplicate' : ''}" data-index="${index}">
+            <input type="checkbox" 
+                   class="env-address-checkbox" 
+                   ${item.isDuplicate ? 'disabled' : ''}
+                   ${envImportData.selectedAddresses.has(index) ? 'checked' : ''}
+                   onchange="toggleAddressSelection(${index})">
+            <div class="env-address-icon">${item.icon}</div>
+            <div class="env-address-info">
+                <div class="env-address-value">${formatAddress(item.address)}</div>
+                <div class="env-address-meta">
+                    <span class="env-address-type">${item.typeLabel}</span>
+                    <span class="env-address-var">${item.key}</span>
+                    ${item.isDuplicate ? '<span class="env-address-duplicate">Already imported</span>' : ''}
+                </div>
+            </div>
+        </div>
+    `).join('');
+    
+    updateSelectedCount();
+}
+
+function toggleAddressSelection(index) {
+    if (envImportData.selectedAddresses.has(index)) {
+        envImportData.selectedAddresses.delete(index);
+    } else {
+        envImportData.selectedAddresses.add(index);
+    }
+    updateSelectedCount();
+}
+
+function toggleSelectAllAddresses() {
+    const checkbox = document.getElementById('selectAllAddresses');
+    const isChecked = checkbox.checked;
+    
+    if (isChecked) {
+        // Select all non-duplicate addresses
+        envImportData.addresses.forEach((item, index) => {
+            if (!item.isDuplicate) {
+                envImportData.selectedAddresses.add(index);
+            }
+        });
+    } else {
+        envImportData.selectedAddresses.clear();
+    }
+    
+    renderEnvAddressesList();
+}
+
+function updateSelectedCount() {
+    const count = envImportData.selectedAddresses.size;
+    document.getElementById('selectedCount').textContent = count;
+    document.getElementById('importBtn').disabled = count === 0;
+}
+
+function importSelectedAddresses() {
+    const selectedIndices = Array.from(envImportData.selectedAddresses);
+    let importedCount = 0;
+    
+    selectedIndices.forEach(index => {
+        const item = envImportData.addresses[index];
+        
+        switch (item.type) {
+            case 'wallet':
+            case 'stake':
+                addWalletPanel();
+                const walletPanel = walletPanels[walletPanels.length - 1];
+                walletPanel.address = item.address;
+                savePanels();
+                refreshWalletPanel(walletPanel.id);
+                importedCount++;
+                break;
+                
+            case 'contract':
+                addContractPanel();
+                const contractPanel = contractPanels[contractPanels.length - 1];
+                contractPanel.address = item.address;
+                savePanels();
+                refreshContractPanel(contractPanel.id);
+                importedCount++;
+                break;
+                
+            case 'pool':
+                addPoolPanel();
+                const poolPanel = poolPanels[poolPanels.length - 1];
+                poolPanel.poolId = item.address;
+                savePanels();
+                refreshPoolPanel(poolPanel.id);
+                importedCount++;
+                break;
+        }
+    });
+    
+    closeModal();
+    showNotification(`Imported ${importedCount} address${importedCount > 1 ? 'es' : ''}`, 'success');
+    
+    // Reset data
+    envImportData.addresses = [];
+    envImportData.selectedAddresses.clear();
+}

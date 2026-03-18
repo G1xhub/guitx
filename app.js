@@ -1287,6 +1287,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 switchApp('dashboard');
             } else if (app === 'tx-builder') {
                 switchApp('tx-builder');
+            } else if (app === 'import') {
+                openEnvImport();
             } else if (app === 'settings') {
                 openSettings();
             }
